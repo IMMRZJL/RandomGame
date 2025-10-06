@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>技能五子棋 · 联机房间</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#94a3b8;
+    --freeze:rgba(56,189,248,.20); --btn:#1f2937; --btn-hover:#374151;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",Arial,"Noto Sans",sans-serif;
+       background:linear-gradient(135deg,#0b1020,#0f172a 60%,#101827); color:var(--text); min-height:100vh}
+  .wrap{max-width:1200px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns:1fr 360px}
+  .panel{background:var(--panel); border-radius:16px; padding:14px; box-shadow:0 6px 24px rgba(0,0,0,.3)}
+  .title{font-weight:800; margin:0 0 8px 0; display:flex; justify-content:space-between; align-items:center}
+  canvas{display:block; background:#f7e9c5; border-radius:14px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08)}
+  .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .btn{background:var(--btn); color:var(--text); border:none; padding:10px 12px; border-radius:12px; cursor:pointer; transition:.15s}
+  .btn:hover{background:var(--btn-hover)}
+  .pill{font-size:.8rem; padding:4px 8px; border-radius:999px; background:#0b1220; color:var(--muted)}
+  .ok{background:rgba(34,197,94,.15); color:#a7f3d0}
+  .cd{background:rgba(251,191,36,.15); color:#fde68a}
+  input,select{background:#0b1220; border:1px solid rgba(255,255,255,.1); color:#e5e7eb; border-radius:10px; padding:8px 10px}
+  @media(max-width:1024px){ .wrap{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h2 class="title">技能五子棋 · 联机 <span id="roomInfo" class="pill">未入房</span></h2>
+    <canvas id="board" width="640" height="640" aria-label="Gomoku board"></canvas>
+  </div>
+
+  <div class="panel">
+    <h3 class="title">大厅与状态 <span id="conn" class="pill">离线</span></h3>
+    <div class="row" style="margin:6px 0 10px">
+      <input id="roomId" placeholder="房间号，如 12345" style="flex:1 1 140px" />
+      <input id="nickname" placeholder="昵称" style="flex:1 1 120px" />
+      <select id="seat">
+        <option value="1">黑方</option>
+        <option value="2">白方</option>
+        <option value="0">旁观</option>
+      </select>
+      <button id="joinBtn" class="btn">进入房间</button>
+    </div>
+    <div id="players" style="color:#cbd5e1; font-size:.95rem; margin-bottom:10px"></div>
+
+    <div class="row" style="margin:12px 0 8px">
+      <button id="placeMode" class="btn">落子模式</button>
+      <button id="undoBtn" class="btn">悔一步</button>
+      <button id="resetBtn" class="btn">新局</button>
+    </div>
+    <h4 style="margin:10px 0 6px">技能</h4>
+    <div class="row">
+      <button id="skillSand" class="btn">飞沙走石 <span id="cdSand" class="pill cd">CD 0</span></button>
+      <button id="skillFreeze" class="btn">静如止水 <span id="cdFreeze" class="pill cd">CD 0</span></button>
+      <button id="skillLeap" class="btn">力拔山兮 <span id="cdLeap" class="pill cd">CD 0</span></button>
+    </div>
+    <p id="hint" style="color:#94a3b8; margin-top:10px">提示会显示在这里</p>
+    <details style="margin-top:12px">
+      <summary>首次使用请展开，贴入你的 Firebase 配置</summary>
+      <pre style="white-space:pre-wrap;color:#a3b1c6">
+const firebaseConfig = {
+  apiKey: "你的 apiKey",
+  authDomain: "xxx.firebaseapp.com",
+  databaseURL: "https://xxx-default-rtdb.firebaseio.com",
+  projectId: "xxx",
+  storageBucket: "xxx.appspot.com",
+  messagingSenderId: "xxx",
+  appId: "xxx"
+};
+      </pre>
+    </details>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+  import {
+    getDatabase, ref, onValue, set, update, runTransaction,
+    onDisconnect, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-database.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyARTxHp8gi-UR9bY5IVSWxUPiSzCawzdsE",
+    authDomain: "sfiar-606ea.firebaseapp.com",
+    databaseURL: "https://sfiar-606ea-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "sfiar-606ea",
+    storageBucket: "sfiar-606ea.appspot.com",
+    messagingSenderId: "153196240063",
+    appId: "1:153196240063:web:ae178909438892a5a1fa0a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // 推荐：匿名登录，方便后面把规则收紧
+  const auth = getAuth(app);
+  signInAnonymously(auth).catch(console.error);
+
+  // 下方接你的“技能五子棋”联机代码（我给你的版本已经写好用 db 的逻辑）
+
+
+/* ---------- 游戏参数与本地状态 ---------- */
+const BOARD_SIZE = 15;
+const CELL = 40;
+const MARGIN = 20;
+const FREEZE_TURNS = 2;
+const CD = { sand:3, freeze:4, leap:4 };
+
+let room = null, uid = crypto.randomUUID();
+let mySeat = 0; // 1黑 2白 0旁观
+let nickname = "";
+let state = null;           // 从云端拿到的权威状态
+let history = [];           // 仅做本地预览的悔棋缓冲
+let mode = 'place';
+let leapFrom = null;
+
+/* ---------- DOM ---------- */
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const roomInfo = document.getElementById('roomInfo');
+const conn = document.getElementById('conn');
+const playersBox = document.getElementById('players');
+const hint = document.getElementById('hint');
+const inputRoom = document.getElementById('roomId');
+const inputName = document.getElementById('nickname');
+const seatSel = document.getElementById('seat');
+const btnJoin = document.getElementById('joinBtn');
+const btnPlace = document.getElementById('placeMode');
+const btnUndo = document.getElementById('undoBtn');
+const btnReset = document.getElementById('resetBtn');
+const btnSand = document.getElementById('skillSand');
+const btnFreeze = document.getElementById('skillFreeze');
+const btnLeap = document.getElementById('skillLeap');
+const cdSand = document.getElementById('cdSand');
+const cdFreeze = document.getElementById('cdFreeze');
+const cdLeap = document.getElementById('cdLeap');
+
+/* ---------- 画板 ---------- */
+function drawBoard(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#f7e9c5'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  // 冻结层
+  if(state){
+    for(let y=0;y<BOARD_SIZE;y++){
+      for(let x=0;x<BOARD_SIZE;x++){
+        if(state.freeze[y][x]>0){
+          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--freeze');
+          ctx.fillRect(MARGIN+x*CELL - CELL/2 +1, MARGIN+y*CELL - CELL/2 +1, CELL-2, CELL-2);
+          ctx.strokeStyle = 'rgba(96,165,250,.8)'; ctx.lineWidth=1; snow(MARGIN+x*CELL, MARGIN+y*CELL);
+        }
+      }
+    }
+  }
+  // 网格
+  ctx.strokeStyle='#bfa87a'; ctx.lineWidth=1;
+  for(let i=0;i<BOARD_SIZE;i++){
+    const p = MARGIN + i*CELL;
+    line(p, MARGIN, p, MARGIN+(BOARD_SIZE-1)*CELL);
+    line(MARGIN, p, MARGIN+(BOARD_SIZE-1)*CELL, p);
+  }
+  // 星位
+  const stars=[3,7,11]; ctx.fillStyle='#8b6b34';
+  stars.forEach(sx=>stars.forEach(sy=>dot(MARGIN+sx*CELL, MARGIN+sy*CELL, 3)));
+  // 棋子
+  if(state){
+    for(let y=0;y<BOARD_SIZE;y++){
+      for(let x=0;x<BOARD_SIZE;x++){
+        const v = state.board[y][x]; if(!v) continue;
+        stone(MARGIN+x*CELL, MARGIN+y*CELL, v===1? '#111':'#fff');
+      }
+    }
+    if(state.lastMove){
+      ctx.strokeStyle = '#22c55e'; ctx.lineWidth=2;
+      ctx.strokeRect(MARGIN+state.lastMove.x*CELL - CELL/2 +3, MARGIN+state.lastMove.y*CELL - CELL/2 +3, CELL-6, CELL-6);
+    }
+  }
+}
+function line(x1,y1,x2,y2){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+function dot(x,y,r){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
+function stone(x,y,color){
+  const r = CELL*0.42;
+  const g = ctx.createRadialGradient(x-r*0.25,y-r*0.25,r*0.2,x,y,r);
+  if(color==='#fff'){g.addColorStop(0,'#fff'); g.addColorStop(1,'#d1d5db');}
+  else{g.addColorStop(0,'#222'); g.addColorStop(1,'#000');}
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+}
+function snow(x,y){
+  const s=CELL*0.18;
+  ctx.beginPath();
+  ctx.moveTo(x-s,y);ctx.lineTo(x+s,y);
+  ctx.moveTo(x,y-s);ctx.lineTo(x,y+s);
+  ctx.moveTo(x-s*0.7,y-s*0.7);ctx.lineTo(x+s*0.7,y+s*0.7);
+  ctx.moveTo(x+s*0.7,y-s*0.7);ctx.lineTo(x-s*0.7,y+s*0.7);
+  ctx.stroke();
+}
+drawBoard();
+
+/* ---------- 工具 ---------- */
+const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
+function screenToCell(ev){
+  const rect=canvas.getBoundingClientRect();
+  const cx = ev.clientX ?? ev.touches?.[0]?.clientX;
+  const cy = ev.clientY ?? ev.touches?.[0]?.clientY;
+  const x = ((cx-rect.left)-MARGIN)/CELL, y = ((cy-rect.top)-MARGIN)/CELL;
+  return {x: clamp(Math.round(x),0,BOARD_SIZE-1), y: clamp(Math.round(y),0,BOARD_SIZE-1)};
+}
+function setHint(t){ hint.textContent = t; }
+
+/* ---------- 房间与在线状态 ---------- */
+function emptyState(){
+  return {
+    board: Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
+    freeze: Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
+    turn: 1,
+    cooldowns: {1:{sand:0,freeze:0,leap:0}, 2:{sand:0,freeze:0,leap:0}},
+    lastMove: null,
+    lastMoveByPlayer: {1:null,2:null},
+    winner: 0
+  };
+}
+
+async function joinRoom(){
+  const rid = inputRoom.value.trim(); const name = inputName.value.trim() || '玩家';
+  const seat = Number(seatSel.value);
+  if(!rid){ return alert('请输入房间号'); }
+  room = rid; nickname = name; mySeat = Number(seatSel.value);   // 0 1 2
+
+  const playersRef = ref(db, `rooms/${room}/players/${uid}`);
+  const presence = { name:nickname, seat:mySeat, ts: serverTimestamp() };
+  await set(playersRef, presence);
+  onDisconnect(playersRef).remove(); // 断线自动清理
+  roomInfo.textContent = `房间 ${room}（你是${seat===1?'黑':seat===2?'白':'旁观'}）`;
+  setHint('已进入房间，等待或开始对局');
+
+  // 初始化房间状态（仅在不存在时）
+	await runTransaction(ref(db, `rooms/${room}/state`), s => {
+	  if (s) return s;
+	  return {
+		board: Array.from({length:15},()=>Array(15).fill(0)),
+		freeze: Array.from({length:15},()=>Array(15).fill(0)),
+		turn: 1,
+		cooldowns: {1:{sand:0,freeze:0,leap:0}, 2:{sand:0,freeze:0,leap:0}},
+		lastMove: null,
+		lastMoveByPlayer: {1:null,2:null},
+		winner: 0
+	  };
+	});
+
+
+  // 监听状态和玩家列表
+  onValue(ref(db, `rooms/${room}/state`), snap => {
+  const val = snap.val();
+  if (!val) return;       // 房间状态尚未创建就别更新 UI
+  state = val;
+  updateUI();
+  drawBoard();
+});
+
+  onValue(ref(db, `rooms/${room}/players`), snap=>{
+    const val = snap.val()||{};
+    const list = Object.values(val).map(v=>`${v.name}（${v.seat===1?'黑':v.seat===2?'白':'旁观'}）`);
+    playersBox.textContent = `在线：${list.join('、')||'无'}`;
+  });
+
+  conn.textContent = '在线'; conn.className='pill ok';
+}
+
+btnJoin.onclick = joinRoom;
+
+/* ---------- UI 状态 ---------- */
+function updateUI(){
+  if (!state) {
+    // 初始加载时禁用技能按钮
+    [btnSand, btnFreeze, btnLeap].forEach(b => b.disabled = true);
+    return;
+  }
+
+	const who = state.turn === 1 ? '黑方' : '白方';   // ← 加这一行
+  const myBucket = (mySeat === 1 || mySeat === 2) ? state.cooldowns?.[mySeat] : null;
+  const show = (el, v)=>{ el.textContent = v <= 0 ? '就绪' : `CD ${v}`; el.className = v <= 0 ? 'pill ok' : 'pill cd'; };
+
+  show(cdSand,   myBucket?.sand   ?? 99);
+  show(cdFreeze, myBucket?.freeze ?? 99);
+  show(cdLeap,   myBucket?.leap   ?? 99);
+
+  btnSand.disabled   = !canUse('sand');
+  btnFreeze.disabled = !canUse('freeze');
+  btnLeap.disabled   = !canUse('leap');
+
+  setHint(`${who}回合。你是${mySeat===1?'黑':mySeat===2?'白':'旁观'}。每回合只能落子或释放一个技能`);
+}
+
+/* ---------- 规则与校验 ---------- */
+function cellFrozen(x,y){ return state.freeze[y][x]>0; }
+function checkWin(board,x,y,color){
+  const dirs = [[1,0],[0,1],[1,1],[1,-1]];
+  for(const [dx,dy] of dirs){
+    let c=1; c+=count(board,x,y,dx,dy,color); c+=count(board,x,y,-dx,-dy,color);
+    if(c>=5) return true;
+  }
+  return false;
+}
+function count(board,x,y,dx,dy,color){
+  let k=0,nx=x+dx,ny=y+dy;
+  while(nx>=0&&ny>=0&&nx<BOARD_SIZE&&ny<BOARD_SIZE&&board[ny][nx]===color){k++; nx+=dx; ny+=dy;}
+  return k;
+}
+
+/* ---------- 事务更新：落子与技能 ---------- */
+async function txPlace(x,y){
+  if(!room||!state) return;
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+
+    // —— 结构兜底，防止旧房间缺字段 —— 
+    s.board = s.board ?? Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.freeze = s.freeze ?? Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.cooldowns = s.cooldowns ?? {1:{sand:0,freeze:0,leap:0}, 2:{sand:0,freeze:0,leap:0}};
+    s.lastMoveByPlayer = s.lastMoveByPlayer ?? {1:null,2:null};
+    if (typeof s.turn !== 'number') s.turn = 1;
+    if (typeof s.winner !== 'number') s.winner = 0;
+    // —— 兜底结束 —— 
+
+    if(mySeat!==s.turn) return s;
+    if(s.board[y][x]!==0) return s;
+    if(s.freeze[y][x]>0) return s;
+
+    // 落子
+    s.board[y][x]=s.turn;
+    s.lastMove={x,y};
+    s.lastMoveByPlayer[s.turn]={x,y};
+
+    // 胜负
+    if(checkWin(s.board,x,y,s.turn)){ s.winner=s.turn; return s; }
+
+    // 回合收尾
+    decFreeze(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+
+async function txSand(x,y){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    if(mySeat!==s.turn) return s;
+    if(s.cooldowns[mySeat].sand>0) return s;
+    const lm = s.lastMoveByPlayer[mySeat]; if(!lm) return s;
+    if(Math.abs(x-lm.x)>1 || Math.abs(y-lm.y)>1) return s;
+    if(s.board[y][x]!== (3-mySeat)) return s;
+    if(s.freeze[y][x]>0) return s;
+    s.board[y][x]=0;
+    s.cooldowns[mySeat].sand = CD.sand;
+    decFreeze(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+async function txFreeze(cx,cy){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    if(mySeat!==s.turn) return s;
+    if(s.cooldowns[mySeat].freeze>0) return s;
+    for(let dy=-1;dy<=1;dy++){
+      for(let dx=-1;dx<=1;dx++){
+        const x=clamp(cx+dx,0,BOARD_SIZE-1), y=clamp(cy+dy,0,BOARD_SIZE-1);
+        s.freeze[y][x] = Math.max(s.freeze[y][x], FREEZE_TURNS);
+      }
+    }
+    s.cooldowns[mySeat].freeze = CD.freeze;
+    decFreeze(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+async function txLeap(from,to){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    if(mySeat!==s.turn) return s;
+    if(s.cooldowns[mySeat].leap>0) return s;
+    const {fx,fy}=from, {tx,ty}=to;
+    if(s.board[fy][fx]!==mySeat) return s;
+    if(s.board[ty][tx]!==0) return s;
+    if(s.freeze[fy][fx]>0 || s.freeze[ty][tx]>0) return s;
+    if(Math.abs(tx-fx)>1 || Math.abs(ty-fy)>1) return s;
+    s.board[fy][fx]=0; s.board[ty][tx]=mySeat;
+    s.lastMove={x:tx,y:ty};
+    s.lastMoveByPlayer[mySeat]={x:tx,y:ty};
+    if(checkWin(s.board,tx,ty,mySeat)){ s.winner=mySeat; return s; }
+    s.cooldowns[mySeat].leap = CD.leap;
+    decFreeze(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+function decFreeze(s){
+  for(let y=0;y<BOARD_SIZE;y++){
+    for(let x=0;x<BOARD_SIZE;x++){
+      if(s.freeze[y][x]>0) s.freeze[y][x]--;
+    }
+  }
+}
+function nextTurn(s){
+  // 结束当前回合，切换到对手并在对手开局时降低对手冷却
+  const opp = 3 - s.turn;
+  s.turn = opp;
+  ['sand','freeze','leap'].forEach(k=>{
+    s.cooldowns[opp][k] = Math.max(0, s.cooldowns[opp][k]-1);
+  });
+}
+
+/* ---------- 本地输入处理 ---------- */
+canvas.addEventListener('click', ev=>{
+  if(!state || state.winner) return;
+  const {x,y} = screenToCell(ev);
+  if(mySeat===0){ setHint('旁观模式不能操作'); return; }
+
+  if(mode==='place') return txPlace(x,y);
+  if(mode==='sand') return txSand(x,y);
+  if(mode==='freeze') return txFreeze(x,y);
+  if(mode==='leapSelect'){
+    if(state.board[y][x]!==mySeat){ setHint('先选择己方棋子'); return; }
+    if(cellFrozen(x,y)){ setHint('该棋子被冻结'); return; }
+    leapFrom = {fx:x, fy:y}; mode='leapTarget'; setHint('请选择相邻空位');
+    return;
+  }
+  if(mode==='leapTarget'){
+    if(state.board[y][x]!==0){ setHint('目标必须是空位'); return; }
+    if(cellFrozen(x,y)){ setHint('目标格被冻结'); return; }
+    if(Math.abs(x-leapFrom.fx)>1 || Math.abs(y-leapFrom.fy)>1){ setHint('只能跳到相邻空位'); return; }
+    const from = {fx:leapFrom.fx, fy:leapFrom.fy}, to = {tx:x, ty:y};
+    leapFrom=null; mode='place'; return txLeap(from,to);
+  }
+});
+
+btnPlace.onclick = ()=>{ mode='place'; setHint('落子模式'); };
+btnUndo.onclick = ()=>{ alert('联机对战不提供本地悔棋，建议开新局'); };
+btnReset.onclick = async ()=>{
+  if(!room) return;
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s) return s;
+    return emptyState();
+  });
+};
+
+btnSand.onclick = ()=>{ if(canUse('sand')){ mode='sand'; setHint('飞沙走石：点你最近落子3×3内对手棋子'); } };
+btnFreeze.onclick = ()=>{ if(canUse('freeze')){ mode='freeze'; setHint('静如止水：点一个中心，冻结3×3两回合'); } };
+btnLeap.onclick = ()=>{ if(canUse('leap')){ mode='leapSelect'; setHint('力拔山兮：先点己方一子'); } };
+
+function canUse(kind){
+  if (!state) return false;
+  if (mySeat !== 1 && mySeat !== 2) return false;        // 旁观或未就座
+  if (state.turn !== mySeat) return false;               // 不是我回合
+  const cdBucket = state.cooldowns?.[mySeat];
+  if (!cdBucket) return false;
+  if ((cdBucket[kind] ?? 99) > 0) return false;
+  if (kind === 'sand' && !state.lastMoveByPlayer?.[mySeat]) return false;
+  return true;
+}
+
+
+/* ---------- 启动 ---------- */
+drawBoard();
+</script>
+</body>
+</html>
