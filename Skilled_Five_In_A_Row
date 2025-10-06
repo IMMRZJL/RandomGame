@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>技能五子棋 · 飞沙走石 力拔山兮</title>
+  <style>
+    :root{
+      --bg:#0f172a;          /* 深色背景 */
+      --panel:#111827;
+      --text:#e5e7eb;
+      --muted:#94a3b8;
+      --accent:#38bdf8;
+      --freeze:rgba(56,189,248,.20);
+      --btn:#1f2937;
+      --btn-hover:#374151;
+      --ok:#22c55e;
+      --warn:#fbbf24;
+      --bad:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC",
+      "Microsoft YaHei", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+      background:linear-gradient(135deg,#0b1020 0%,#0f172a 60%,#101827 100%);
+      color:var(--text); display:grid; min-height:100vh; place-items:center;
+    }
+    .wrap{
+      display:grid; gap:16px; width:min(1200px,98vw);
+      grid-template-columns: 1fr 340px;
+      padding:16px;
+    }
+    .panel{
+      background:var(--panel); border-radius:16px; padding:14px; box-shadow:0 6px 24px rgba(0,0,0,.3);
+    }
+    .title{
+      font-weight:800; letter-spacing:.5px; display:flex; justify-content:space-between; align-items:center;
+      margin:0 0 8px 0;
+    }
+    .subtitle{color:var(--muted); font-size:.92rem; margin:6px 0 12px 0}
+    canvas{display:block; background:#f7e9c5; border-radius:14px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);}
+    .btn{
+      background:var(--btn); color:var(--text); border:none; padding:10px 12px; border-radius:12px; cursor:pointer;
+      transition:.15s transform ease, .15s background ease; font-weight:600; font-size:.95rem;
+    }
+    .btn:hover{ background:var(--btn-hover) }
+    .btn[disabled]{ opacity:.5; cursor:not-allowed; }
+    .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .skill{
+      flex:1 1 calc(50% - 8px); min-width:140px; display:flex; align-items:center; justify-content:space-between;
+    }
+    .pill{ font-size:.78rem; padding:4px 8px; border-radius:999px; background:#0b1220; color:var(--muted) }
+    .pill.ok{ background:rgba(34,197,94,.15); color:#a7f3d0 }
+    .pill.cd{ background:rgba(251,191,36,.15); color:#fde68a }
+    .legend{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:6px 0 10px}
+    .dot{width:12px; height:12px; border-radius:50%}
+    .dot.black{ background:#111 }
+    .dot.white{ background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.25) inset }
+    .help{ font-size:.9rem; color:var(--muted); line-height:1.5 }
+    .kbd{ padding:2px 6px; border-radius:6px; background:#0b1220; border:1px solid rgba(255,255,255,.08); color:#cbd5e1; font-size:.85rem }
+    .footer{ font-size:.86rem; color:#a3b1c6 }
+    .win{
+      position:fixed; inset:0; display:none; place-items:center; backdrop-filter: blur(6px);
+      background:rgba(0,0,0,.25); z-index:50;
+    }
+    .win .box{ background:#0e1628; border:1px solid rgba(255,255,255,.08); padding:22px; border-radius:16px; width:min(92vw,420px) }
+    .win .box h3{ margin:0 0 8px 0 }
+    .note{font-size:.86rem; color:#cbd5e1}
+    @media (max-width:1024px){
+      .wrap{ grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h2 class="title">技能五子棋 <span class="pill">15×15 · 本地双人</span></h2>
+      <p class="subtitle">传统五子棋只是连五个子。技能五子棋在此基础上加入三大技能：<b>飞沙走石</b>、<b>静如止水</b>、<b>力拔山兮</b>。每回合只能做一件事。</p>
+      <canvas id="board" width="640" height="640" aria-label="Gomoku board"></canvas>
+    </div>
+
+    <div class="panel">
+      <h3 class="title" style="margin-bottom:6px">当前状态 <span id="turnTag" class="pill ok">黑方回合</span></h3>
+      <div class="legend">
+        <span class="dot black"></span><span>黑子</span>
+        <span class="dot white"></span><span>白子</span>
+        <span style="width:12px;height:12px;border-radius:2px;background:var(--freeze);display:inline-block;border:1px dashed #60a5fa"></span><span>冻结区</span>
+      </div>
+
+      <div class="row" style="margin:12px 0 8px">
+        <button id="placeMode" class="btn" title="点击棋盘落子">落子模式</button>
+        <button id="undoBtn" class="btn" title="悔一步">悔一步</button>
+        <button id="resetBtn" class="btn" title="新局">新局</button>
+      </div>
+
+      <h4 style="margin:12px 0 8px">技能</h4>
+      <div class="row">
+        <button id="skillSand" class="btn skill" title="以我方最近一次落子为中心的3×3内，移除一颗对方棋子">
+          飞沙走石 <span id="cdSand" class="pill cd">CD 0</span>
+        </button>
+        <button id="skillFreeze" class="btn skill" title="选择一个3×3区域，冻结2回合">
+          静如止水 <span id="cdFreeze" class="pill cd">CD 0</span>
+        </button>
+        <button id="skillLeap" class="btn skill" title="选择己方一子，再点相邻空位跳过去">
+          力拔山兮 <span id="cdLeap" class="pill cd">CD 0</span>
+        </button>
+      </div>
+
+      <p id="hint" class="help" style="margin-top:10px">提示将显示在这里。</p>
+      <div class="footer" style="margin-top:10px">
+        <div style="margin-bottom:6px"><span class="kbd">鼠标左键</span> 选择或落子。手机用户请点按。</div>
+        <div>项目可直接部署到 GitHub Pages。下方有步骤。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="width:min(1200px,98vw); margin-top:-8px">
+    <h3 class="title" style="margin-bottom:4px">部署到 GitHub Pages</h3>
+    <ol class="help" style="margin:6px 0 0 18px">
+      <li>新建仓库，名称随意，公开或私有都可。</li>
+      <li>把本页保存为 <code>index.html</code> 提交到仓库根目录。</li>
+      <li>打开仓库 Settings → Pages，Source 选 <b>Deploy from a branch</b>，分支选 <b>main</b>，目录选 <b>root</b>，保存。</li>
+      <li>几秒后页面会生成访问链接，点开即可游玩。</li>
+    </ol>
+  </div>
+
+  <div id="winModal" class="win">
+    <div class="box">
+      <h3 id="winText">黑方胜利</h3>
+      <p class="note">点“新局”再来一把，或“悔一步”回到上一回合。</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" onclick="hideWin()">继续观察</button>
+        <button class="btn" onclick="resetGame()">新局</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(()=>{
+
+  // ====== 可调参数 ======
+  const BOARD_SIZE = 15;
+  const CELL = 40;           // 格点间距
+  const MARGIN = 20;         // 画布边距
+  const FREEZE_TURNS = 2;    // 冻结持续回合
+  const CD = { sand:3, freeze:4, leap:4 }; // 技能冷却
+
+  // ====== DOM ======
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const turnTag = document.getElementById('turnTag');
+  const hint = document.getElementById('hint');
+  const btnPlace = document.getElementById('placeMode');
+  const btnUndo = document.getElementById('undoBtn');
+  const btnReset = document.getElementById('resetBtn');
+  const btnSand = document.getElementById('skillSand');
+  const btnFreeze = document.getElementById('skillFreeze');
+  const btnLeap = document.getElementById('skillLeap');
+  const cdSand = document.getElementById('cdSand');
+  const cdFreeze = document.getElementById('cdFreeze');
+  const cdLeap = document.getElementById('cdLeap');
+  const winModal = document.getElementById('winModal');
+  const winText = document.getElementById('winText');
+
+  // ====== 状态 ======
+  let board, freezeGrid, turn, mode, lastMove, lastMoveByPlayer, cooldowns, history, winner;
+  init();
+
+  function init(){
+    board = Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    freezeGrid = Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    turn = 1; // 1黑 2白
+    mode = 'place'; // place | sand | freeze | leapSelect | leapTarget
+    lastMove = null;
+    lastMoveByPlayer = {1:null, 2:null};
+    cooldowns = {1:{sand:0, freeze:0, leap:0}, 2:{sand:0, freeze:0, leap:0}};
+    history = [];
+    winner = 0;
+    setHint('落子模式。黑方先行。也可点技能按钮切换。');
+    updateUI();
+    draw();
+  }
+
+  function saveHistory(){
+    const snapshot = {
+      board: board.map(r=>r.slice()),
+      freeze: freezeGrid.map(r=>r.slice()),
+      turn, mode, lastMove: lastMove? {...lastMove}: null,
+      lastMoveByPlayer: {1: lastMoveByPlayer[1]? {...lastMoveByPlayer[1]}:null,
+                         2: lastMoveByPlayer[2]? {...lastMoveByPlayer[2]}:null},
+      cooldowns: JSON.parse(JSON.stringify(cooldowns)),
+      winner
+    };
+    history.push(snapshot);
+  }
+
+  function restoreHistory(){
+    if(!history.length) return;
+    const s = history.pop();
+    board = s.board.map(r=>r.slice());
+    freezeGrid = s.freeze.map(r=>r.slice());
+    turn = s.turn;
+    mode = s.mode;
+    lastMove = s.lastMove? {...s.lastMove}:null;
+    lastMoveByPlayer = {1: s.lastMoveByPlayer[1]? {...s.lastMoveByPlayer[1]}:null,
+                        2: s.lastMoveByPlayer[2]? {...s.lastMoveByPlayer[2]}:null};
+    cooldowns = JSON.parse(JSON.stringify(s.cooldowns));
+    winner = s.winner;
+    updateUI();
+    draw();
+  }
+
+  // ====== 绘制 ======
+  function draw(){
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0,0,W,H);
+
+    // 棋盘背景
+    ctx.fillStyle = '#f7e9c5';
+    ctx.fillRect(0,0,W,H);
+
+    // 冻结层先画底色
+    for(let y=0;y<BOARD_SIZE;y++){
+      for(let x=0;x<BOARD_SIZE;x++){
+        if(freezeGrid[y][x]>0){
+          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--freeze');
+          const px = MARGIN + x*CELL, py = MARGIN + y*CELL;
+          ctx.fillRect(px - CELL/2 +1, py - CELL/2 +1, CELL-2, CELL-2);
+          // 小雪花标记
+          ctx.strokeStyle = 'rgba(96,165,250,.8)';
+          ctx.lineWidth = 1;
+          drawSnow(px, py);
+        }
+      }
+    }
+
+    // 网格
+    ctx.strokeStyle = '#bfa87a';
+    ctx.lineWidth = 1;
+    for(let i=0;i<BOARD_SIZE;i++){
+      const p = MARGIN + i*CELL;
+      // 竖
+      line(p, MARGIN, p, MARGIN + (BOARD_SIZE-1)*CELL);
+      // 横
+      line(MARGIN, p, MARGIN + (BOARD_SIZE-1)*CELL, p);
+    }
+
+    // 星位
+    const stars = [3,7,11];
+    ctx.fillStyle = '#8b6b34';
+    stars.forEach(sx=>stars.forEach(sy=>{
+      dot(MARGIN+sx*CELL, MARGIN+sy*CELL, 3);
+    }));
+
+    // 棋子
+    for(let y=0;y<BOARD_SIZE;y++){
+      for(let x=0;x<BOARD_SIZE;x++){
+        const v = board[y][x];
+        if(v===0) continue;
+        const px = MARGIN + x*CELL, py = MARGIN + y*CELL;
+        drawStone(px, py, v===1? '#0f0f0f' : '#ffffff');
+      }
+    }
+
+    // 最近落子高亮
+    if(lastMove){
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(MARGIN + lastMove.x*CELL - CELL/2 +3, MARGIN + lastMove.y*CELL - CELL/2 +3, CELL-6, CELL-6);
+    }
+  }
+
+  function line(x1,y1,x2,y2){ ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); }
+  function dot(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); }
+  function drawStone(x,y,color){
+    const r = CELL*0.42;
+    const g = ctx.createRadialGradient(x - r*0.25, y - r*0.25, r*0.2, x, y, r);
+    if(color==='#ffffff'){
+      g.addColorStop(0,'#ffffff');
+      g.addColorStop(1,'#d1d5db');
+    }else{
+      g.addColorStop(0,'#222');
+      g.addColorStop(1,'#000');
+    }
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  }
+  function drawSnow(x,y){
+    const s = CELL*0.18;
+    ctx.beginPath();
+    ctx.moveTo(x-s,y); ctx.lineTo(x+s,y);
+    ctx.moveTo(x,y-s); ctx.lineTo(x,y+s);
+    ctx.moveTo(x-s*0.7,y-s*0.7); ctx.lineTo(x+s*0.7,y+s*0.7);
+    ctx.moveTo(x+s*0.7,y-s*0.7); ctx.lineTo(x-s*0.7,y+s*0.7);
+    ctx.stroke();
+  }
+
+  // ====== 工具 ======
+  function screenToCell(ev){
+    const rect = canvas.getBoundingClientRect();
+    const cx = ev.clientX ?? ev.touches?.[0]?.clientX;
+    const cy = ev.clientY ?? ev.touches?.[0]?.clientY;
+    const x = ((cx - rect.left) - MARGIN)/CELL;
+    const y = ((cy - rect.top) - MARGIN)/CELL;
+    return { x: clamp(Math.round(x),0,BOARD_SIZE-1), y: clamp(Math.round(y),0,BOARD_SIZE-1) };
+  }
+  const clamp=(v,min,max)=> Math.min(max, Math.max(min,v));
+  function cellFrozen(x,y){ return freezeGrid[y][x] > 0; }
+  function inside3x3(cx,cy,x,y){ return Math.abs(x-cx)<=1 && Math.abs(y-cy)<=1; }
+
+  // ====== 回合与UI ======
+  function startTurn(){
+    // 本方技能冷却 -1
+    Object.keys(cooldowns[turn]).forEach(k=>{
+      cooldowns[turn][k] = Math.max(0, cooldowns[turn][k]-1);
+    });
+    updateUI();
+  }
+  function endTurn(){
+    // 冻结 -1
+    for(let y=0;y<BOARD_SIZE;y++){
+      for(let x=0;x<BOARD_SIZE;x++){
+        if(freezeGrid[y][x]>0) freezeGrid[y][x]--;
+      }
+    }
+    draw();
+    // 交换回合
+    turn = 3 - turn;
+    mode = 'place';
+    updateUI();
+    startTurn();
+  }
+  function setHint(text){ hint.textContent = text; }
+  function updateUI(){
+    const who = turn===1? '黑方' : '白方';
+    turnTag.textContent = `${who}回合`;
+    turnTag.className = 'pill ok';
+
+    // 冷却显示
+    function setCD(el, v){
+      if(v<=0){ el.textContent = '就绪'; el.className = 'pill ok'; }
+      else { el.textContent = `CD ${v}`; el.className = 'pill cd'; }
+    }
+    setCD(cdSand, cooldowns[turn].sand);
+    setCD(cdFreeze, cooldowns[turn].freeze);
+    setCD(cdLeap, cooldowns[turn].leap);
+
+    // 按钮禁用逻辑
+    btnSand.disabled = cooldowns[turn].sand>0 || (lastMoveByPlayer[turn]==null);
+    btnFreeze.disabled = cooldowns[turn].freeze>0;
+    btnLeap.disabled = cooldowns[turn].leap>0;
+
+    if(mode==='place') setHint('落子模式。点棋盘的交点落子。');
+    if(mode==='sand') setHint('飞沙走石：点我方最近落子周围3×3内的一颗对方棋子把它吹走。');
+    if(mode==='freeze') setHint('静如止水：在棋盘上点任意位置，会以该点为中心冻结3×3区域。');
+    if(mode==='leapSelect') setHint('力拔山兮：先点一颗己方棋子。');
+    if(mode==='leapTarget') setHint('力拔山兮：再点相邻的一个空位完成跳跃。');
+  }
+
+  // ====== 落子与胜负 ======
+  function tryPlace(x,y){
+    if(board[y][x]!==0){ setHint('这里已有棋子。'); return; }
+    if(cellFrozen(x,y)){ setHint('此处被冻结，不能落子。'); return; }
+    saveHistory();
+    board[y][x] = turn;
+    lastMove = {x,y};
+    lastMoveByPlayer[turn] = {x,y};
+    draw();
+    if(checkWin(x,y)){
+      winner = turn;
+      showWin();
+      return;
+    }
+    endTurn();
+  }
+
+  function checkWin(x,y){
+    const color = board[y][x];
+    const dirs = [[1,0],[0,1],[1,1],[1,-1]];
+    for(const [dx,dy] of dirs){
+      let cnt = 1;
+      cnt += countDir(x,y,dx,dy,color);
+      cnt += countDir(x,y,-dx,-dy,color);
+      if(cnt>=5) return true;
+    }
+    return false;
+  }
+  function countDir(x,y,dx,dy,color){
+    let c=0, nx=x+dx, ny=y+dy;
+    while(nx>=0 && ny>=0 && nx<BOARD_SIZE && ny<BOARD_SIZE && board[ny][nx]===color){
+      c++; nx+=dx; ny+=dy;
+    }
+    return c;
+  }
+
+  // ====== 技能 ======
+  function useSand(x,y){
+    const lm = lastMoveByPlayer[turn];
+    if(!lm){ setHint('你还没有落过子，无法确定3×3范围。'); return; }
+    if(!inside3x3(lm.x,lm.y,x,y)){ setHint('目标不在以最近落子为中心的3×3范围内。'); return; }
+    if(board[y][x]!== (3-turn)){ setHint('需要点对手的棋子。'); return; }
+    if(cellFrozen(x,y)){ setHint('被冻结的棋子不能被吹走。'); return; }
+    saveHistory();
+    board[y][x]=0; // 移除
+    cooldowns[turn].sand = CD.sand;
+    lastMove = null; // 使用技能未落子，不高亮
+    mode = 'place';
+    draw();
+    endTurn();
+  }
+
+  function useFreeze(centerX,centerY){
+    saveHistory();
+    for(let dy=-1; dy<=1; dy++){
+      for(let dx=-1; dx<=1; dx++){
+        const x = clamp(centerX+dx,0,BOARD_SIZE-1);
+        const y = clamp(centerY+dy,0,BOARD_SIZE-1);
+        freezeGrid[y][x] = Math.max(freezeGrid[y][x], FREEZE_TURNS);
+      }
+    }
+    cooldowns[turn].freeze = CD.freeze;
+    lastMove = null;
+    mode = 'place';
+    draw();
+    endTurn();
+  }
+
+  let leapFrom = null;
+  function leapSelect(x,y){
+    if(board[y][x]!==turn){ setHint('请选择己方的一颗棋子。'); return; }
+    if(cellFrozen(x,y)){ setHint('这颗棋子被冻结，不能移动。'); return; }
+    leapFrom = {x,y};
+    mode = 'leapTarget';
+    updateUI();
+  }
+  function leapTarget(x,y){
+    if(board[y][x]!==0){ setHint('落点必须为空。'); return; }
+    if(cellFrozen(x,y)){ setHint('目标格被冻结，不能跳入。'); return; }
+    // 需要相邻（含对角）
+    if(Math.abs(x-leapFrom.x)>1 || Math.abs(y-leapFrom.y)>1){ setHint('只能跳到相邻的一个空位。'); return; }
+    saveHistory();
+    board[leapFrom.y][leapFrom.x]=0;
+    board[y][x]=turn;
+    lastMove = {x,y};
+    lastMoveByPlayer[turn] = {x,y};
+    cooldowns[turn].leap = CD.leap;
+    leapFrom = null;
+    mode='place';
+    draw();
+    if(checkWin(x,y)){ winner=turn; showWin(); return; }
+    endTurn();
+  }
+
+  // ====== 事件 ======
+  canvas.addEventListener('click', ev=>{
+    if(winner) return;
+    const {x,y} = screenToCell(ev);
+    if(mode==='place') return tryPlace(x,y);
+    if(mode==='sand') return useSand(x,y);
+    if(mode==='freeze') return useFreeze(x,y);
+    if(mode==='leapSelect') return leapSelect(x,y);
+    if(mode==='leapTarget') return leapTarget(x,y);
+  });
+
+  btnPlace.onclick = ()=>{ mode='place'; updateUI(); };
+  btnUndo.onclick = ()=>{ restoreHistory(); setHint('已悔一步。'); };
+  btnReset.onclick = ()=> resetGame();
+
+  btnSand.onclick = ()=>{ if(btnSand.disabled) return; mode='sand'; updateUI(); };
+  btnFreeze.onclick = ()=>{ if(btnFreeze.disabled) return; mode='freeze'; updateUI(); };
+  btnLeap.onclick = ()=>{
+    if(btnLeap.disabled) return;
+    mode='leapSelect'; leapFrom=null; updateUI();
+  };
+
+  function resetGame(){ init(); hideWin(); setHint('新局开始。黑方先行。'); }
+  function showWin(){ winText.textContent = (winner===1? '黑方' : '白方') + '胜利'; winModal.style.display='grid'; }
+  window.hideWin = function(){ winModal.style.display='none'; }
+
+  // 开局先进入黑方回合，触发一次冷却结算
+  startTurn();
+
+})();
+</script>
+</body>
+</html>
