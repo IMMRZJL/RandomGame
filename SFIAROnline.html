@@ -1,3 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>技能五子棋 · 联机房间</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#94a3b8;
+    --freeze:rgba(56,189,248,.20); --ruin:rgba(239,68,68,.18);
+    --btn:#1f2937; --btn-hover:#374151; --ok:#22c55e; --bad:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",Arial,"Noto Sans",sans-serif;
+       background:linear-gradient(135deg,#0b1020,#0f172a 60%,#101827); color:var(--text); min-height:100vh}
+  .wrap{max-width:1200px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns:1fr 380px}
+  .panel{background:var(--panel); border-radius:16px; padding:14px; box-shadow:0 6px 24px rgba(0,0,0,.3)}
+  .title{font-weight:800; margin:0 0 8px 0; display:flex; justify-content:space-between; align-items:center}
+  canvas{display:block; background:#f7e9c5; border-radius:14px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08)}
+  .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .btn{background:var(--btn); color:var(--text); border:none; padding:10px 12px; border-radius:12px; cursor:pointer; transition:.15s}
+  .btn:hover{background:var(--btn-hover)}
+  .pill{font-size:.8rem; padding:4px 10px; border-radius:999px; background:#0b1220; color:#cbd5e1}
+  .ok{background:rgba(34,197,94,.15); color:#a7f3d0}
+  .cd{background:rgba(251,191,36,.15); color:#fde68a}
+  .turn{font-weight:900; padding:6px 12px; border-radius:12px}
+  .turn.black{background:rgba(0,0,0,.85); color:#fff}
+  .turn.white{background:#fff; color:#111; box-shadow:0 0 0 2px rgba(0,0,0,.2) inset}
+  input,select{background:#0b1220; border:1px solid rgba(255,255,255,.1); color:#e5e7eb; border-radius:10px; padding:8px 10px}
+  .chat{
+    background:#0b1220; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px; height:200px; overflow:auto;
+    font-size:.92rem; line-height:1.35;
+  }
+  .chat .msg{margin:2px 0}
+  .chat .me{color:#a7f3d0}
+  .chat .sys{color:#fde68a}
+  .chatInput{display:flex; gap:8px; margin-top:8px}
+  @media(max-width:1024px){ .wrap{grid-template-columns:1fr} }
+  /* Win modal */
+  .win{position:fixed; inset:0; display:none; place-items:center; backdrop-filter:blur(6px); background:rgba(0,0,0,.25); z-index:50}
+  .win .box{background:#0e1628; border:1px solid rgba(255,255,255,.08); padding:22px; border-radius:16px; width:min(92vw,420px)}
+  .win .box h3{margin:0 0 8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h2 class="title">
+      技能五子棋 · 联机
+      <span id="roomInfo" class="pill">未入房</span>
+    </h2>
+    <canvas id="board" width="640" height="640" aria-label="Gomoku board"></canvas>
+  </div>
+
+  <div class="panel">
+    <h3 class="title">大厅与状态 <span id="conn" class="pill">离线</span></h3>
+    <div class="row" style="margin:6px 0 8px">
+      <input id="roomId" placeholder="房间号，如 12345" style="flex:1 1 140px" />
+      <input id="nickname" placeholder="昵称" style="flex:1 1 120px" />
+      <select id="seat">
+        <option value="1">黑方</option>
+        <option value="2">白方</option>
+        <option value="0">旁观</option>
+      </select>
+      <button id="joinBtn" class="btn">进入房间</button>
+    </div>
+
+    <div class="row" style="margin:6px 0">
+      <span id="turnTag" class="turn black">黑方回合</span>
+    </div>
+
+    <div class="row" style="margin:10px 0 8px">
+      <button id="placeMode" class="btn">落子模式</button>
+      <button id="resetBtn" class="btn">新局</button>
+    </div>
+
+    <h4 style="margin:10px 0 6px">技能</h4>
+    <div class="row">
+      <button id="skillSand" class="btn">飞沙走石 <span id="cdSand" class="pill cd">CD 0</span></button>
+      <button id="skillFreeze" class="btn">静如止水 <span id="cdFreeze" class="pill cd">CD 0</span></button>
+      <button id="skillHurl" class="btn">力拔山兮 <span id="cdHurl" class="pill cd">CD 0</span></button>
+      <button id="skillRewind" class="btn">回溯时光 <span id="cdRewind" class="pill cd">CD 0</span></button>
+    </div>
+
+    <p id="hint" style="color:#94a3b8; margin-top:8px">提示会显示在这里</p>
+
+    <h4 style="margin:12px 0 6px">聊天室</h4>
+    <div id="chatList" class="chat"></div>
+    <div class="chatInput">
+      <input id="chatInput" placeholder="说点什么…" style="flex:1 1 auto" />
+      <button id="chatSend" class="btn">发送</button>
+    </div>
+  </div>
+</div>
+
+<div id="winModal" class="win">
+  <div class="box">
+    <h3 id="winText">黑方胜利</h3>
+    <p style="color:#cbd5e1">恭喜获胜。可以开始新局或继续围观。</p>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" onclick="document.getElementById('winModal').style.display='none'">继续观察</button>
+      <button class="btn" id="winReset">新局</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 /* ---------- Firebase ---------- */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
