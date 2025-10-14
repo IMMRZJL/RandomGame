@@ -1,0 +1,992 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>技能五子棋 · 联机房间</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#94a3b8;
+    --freeze:rgba(56,189,248,.20); --ruin:rgba(239,68,68,.18);
+    --btn:#1f2937; --btn-hover:#374151; --ok:#22c55e; --bad:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",Arial,"Noto Sans",sans-serif;
+       background:linear-gradient(135deg,#0b1020,#0f172a 60%,#101827); color:var(--text); min-height:100vh}
+  .wrap{max-width:1200px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns:1fr 380px}
+  .panel{background:var(--panel); border-radius:16px; padding:14px; box-shadow:0 6px 24px rgba(0,0,0,.3)}
+  .title{font-weight:800; margin:0 0 8px 0; display:flex; justify-content:space-between; align-items:center}
+  canvas{display:block; background:#f7e9c5; border-radius:14px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08)}
+  .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .btn{background:var(--btn); color:var(--text); border:none; padding:10px 12px; border-radius:12px; cursor:pointer; transition:.15s}
+  .btn:hover{background:var(--btn-hover)}
+  .pill{font-size:.8rem; padding:4px 10px; border-radius:999px; background:#0b1220; color:#cbd5e1}
+  .ok{background:rgba(34,197,94,.15); color:#a7f3d0}
+  .cd{background:rgba(251,191,36,.15); color:#fde68a}
+  .turn{font-weight:900; padding:6px 12px; border-radius:12px}
+  .turn.black{background:rgba(0,0,0,.85); color:#fff}
+  .turn.white{background:#fff; color:#111; box-shadow:0 0 0 2px rgba(0,0,0,.2) inset}
+  input,select{background:#0b1220; border:1px solid rgba(255,255,255,.1); color:#e5e7eb; border-radius:10px; padding:8px 10px}
+  .chat{
+    background:#0b1220; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px; height:200px; overflow:auto;
+    font-size:.92rem; line-height:1.35;
+  }
+  .chat .msg{margin:2px 0}
+  .chat .me{color:#a7f3d0}
+  .chat .sys{color:#fde68a}
+  .chatInput{display:flex; gap:8px; margin-top:8px}
+  @media(max-width:1024px){ .wrap{grid-template-columns:1fr} }
+  /* Win modal */
+  .win{position:fixed; inset:0; display:none; place-items:center; backdrop-filter:blur(6px); background:rgba(0,0,0,.25); z-index:50}
+  .win .box{background:#0e1628; border:1px solid rgba(255,255,255,.08); padding:22px; border-radius:16px; width:min(92vw,420px)}
+  .win .box h3{margin:0 0 8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h2 class="title">
+      技能五子棋 · 联机
+      <span id="roomInfo" class="pill">未入房</span>
+    </h2>
+    <canvas id="board" width="640" height="640" aria-label="Gomoku board"></canvas>
+  </div>
+
+  <div class="panel">
+    <h3 class="title">大厅与状态 <span id="conn" class="pill">离线</span></h3>
+    <div class="row" style="margin:6px 0 8px">
+      <input id="roomId" placeholder="房间号，如 12345" style="flex:1 1 140px" />
+      <input id="nickname" placeholder="昵称" style="flex:1 1 120px" />
+      <select id="seat">
+        <option value="1">黑方</option>
+        <option value="2">白方</option>
+        <option value="0">旁观</option>
+      </select>
+      <button id="joinBtn" class="btn">进入房间</button>
+    </div>
+
+    <div class="row" style="margin:6px 0">
+      <span id="turnTag" class="turn black">黑方回合</span>
+    </div>
+
+    <div class="row" style="margin:10px 0 8px">
+      <button id="placeMode" class="btn">落子模式</button>
+      <button id="resetBtn" class="btn">新局</button>
+    </div>
+
+    <h4 style="margin:10px 0 6px">技能</h4>
+    <div class="row">
+      <button id="skillSand" class="btn">飞沙走石 <span id="cdSand" class="pill cd">CD 0</span></button>
+      <button id="skillFreeze" class="btn">静如止水 <span id="cdFreeze" class="pill cd">CD 0</span></button>
+      <button id="skillHurl" class="btn">力拔山兮 <span id="cdHurl" class="pill cd">CD 0</span></button>
+      <button id="skillRewind" class="btn">回溯时光 <span id="cdRewind" class="pill cd">CD 0</span></button>
+    </div>
+
+    <p id="hint" style="color:#94a3b8; margin-top:8px">提示会显示在这里</p>
+
+    <h4 style="margin:12px 0 6px">聊天室</h4>
+    <div id="chatList" class="chat"></div>
+    <div class="chatInput">
+      <input id="chatInput" placeholder="说点什么…" style="flex:1 1 auto" />
+      <button id="chatSend" class="btn">发送</button>
+    </div>
+  </div>
+</div>
+
+<div id="winModal" class="win">
+  <div class="box">
+    <h3 id="winText">黑方胜利</h3>
+    <p style="color:#cbd5e1">恭喜获胜。可以开始新局或继续围观。</p>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" onclick="document.getElementById('winModal').style.display='none'">继续观察</button>
+      <button class="btn" id="winReset">新局</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+/* ---------- Firebase ---------- */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+import {
+  getDatabase, ref, onValue, set, runTransaction, onDisconnect,
+  serverTimestamp, push, onChildAdded, query, limitToLast
+} from "https://www.gstatic.com/firebasejs/12.3.0/firebase-database.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
+
+/* Replace with your own config */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR.firebaseapp.com",
+  databaseURL: "https://YOUR-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "YOUR",
+  storageBucket: "YOUR.appspot.com",
+  messagingSenderId: "YOUR",
+  appId: "YOUR_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
+signInAnonymously(auth).catch(console.error);
+
+/* ---------- Game constants ---------- */
+const BOARD_SIZE = 15;
+const CELL = 40;
+const MARGIN = 20;
+const FREEZE_TURNS = 3; // increased
+const RUIN_TURNS = 2;   // ruins from Sand
+const CD = { sand:5, freeze:5, hurl:5, rewind:6 };
+
+/* ---------- Local state ---------- */
+let room = null, uid = crypto.randomUUID();
+let mySeat = 0; // 1 black, 2 white, 0 spectator
+let nickname = "";
+let state = null; // authoritative
+let mode = 'place'; // place | sand | freeze | hurlSelect | hurlTarget
+let leapFrom = null; // for hurl
+let hoverCell = null;
+let prevWinner = 0;
+
+/* ---------- DOM ---------- */
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const roomInfo = document.getElementById('roomInfo');
+const conn = document.getElementById('conn');
+const playersBox = document.getElementById('players');
+const hint = document.getElementById('hint');
+const turnTag = document.getElementById('turnTag');
+const inputRoom = document.getElementById('roomId');
+const inputName = document.getElementById('nickname');
+const seatSel = document.getElementById('seat');
+const btnJoin = document.getElementById('joinBtn');
+const btnPlace = document.getElementById('placeMode');
+const btnReset = document.getElementById('resetBtn');
+const btnSand = document.getElementById('skillSand');
+const btnFreeze = document.getElementById('skillFreeze');
+const btnHurl = document.getElementById('skillHurl');
+const btnRewind = document.getElementById('skillRewind');
+const cdSand = document.getElementById('cdSand');
+const cdFreeze = document.getElementById('cdFreeze');
+const cdHurl = document.getElementById('cdHurl');
+const cdRewind = document.getElementById('cdRewind');
+const chatList = document.getElementById('chatList');
+const chatInput = document.getElementById('chatInput');
+const chatSend = document.getElementById('chatSend');
+const winModal = document.getElementById('winModal');
+const winText = document.getElementById('winText');
+document.getElementById('winReset').onclick = ()=>resetRoom();
+
+/* ---------- Helpers ---------- */
+const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
+function line(x1,y1,x2,y2){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+function dot(x,y,r){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
+function stone(x,y,color){
+  const r = CELL*0.42;
+  const g = ctx.createRadialGradient(x-r*0.25,y-r*0.25,r*0.2,x,y,r);
+  if(color==='#fff'){g.addColorStop(0,'#fff'); g.addColorStop(1,'#d1d5db');}
+  else{g.addColorStop(0,'#222'); g.addColorStop(1,'#000');}
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+}
+function snow(x,y){
+  const s=CELL*0.18;
+  ctx.beginPath();
+  ctx.moveTo(x-s,y);ctx.lineTo(x+s,y);
+  ctx.moveTo(x,y-s);ctx.lineTo(x,y+s);
+  ctx.moveTo(x-s*0.7,y-s*0.7);ctx.lineTo(x+s*0.7,y+s*0.7);
+  ctx.moveTo(x+s*0.7,y-s*0.7);ctx.lineTo(x-s*0.7,y+s*0.7);
+  ctx.strokeStyle='rgba(96,165,250,.8)'; ctx.lineWidth=1; ctx.stroke();
+}
+function cracks(x,y){
+  const s=CELL*0.18;
+  ctx.beginPath();
+  ctx.moveTo(x-s,y);ctx.lineTo(x+s,y);
+  ctx.moveTo(x-s*0.6,y);ctx.lineTo(x,y+s*0.6);
+  ctx.moveTo(x,y-s*0.6);ctx.lineTo(x+s*0.6,y);
+  ctx.strokeStyle='rgba(239,68,68,.8)'; ctx.lineWidth=1; ctx.stroke();
+}
+function screenToCell(ev){
+  const rect=canvas.getBoundingClientRect();
+  const cx = ev.clientX ?? ev.touches?.[0]?.clientX;
+  const cy = ev.clientY ?? ev.touches?.[0]?.clientY;
+  const x = ((cx-rect.left)-MARGIN)/CELL, y = ((cy-rect.top)-MARGIN)/CELL;
+  return {x: clamp(Math.round(x),0,BOARD_SIZE-1), y: clamp(Math.round(y),0,BOARD_SIZE-1)};
+}
+function setHint(t){ hint.textContent = t; }
+
+/* ---------- Drawing ---------- */
+function drawBoard(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#f7e9c5'; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // ruins and freeze base layers
+  if(state){
+    for(let y=0;y<BOARD_SIZE;y++){
+      for(let x=0;x<BOARD_SIZE;x++){
+        if(state.ruin[y][x]>0){
+          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--ruin');
+          ctx.fillRect(MARGIN+x*CELL - CELL/2 +1, MARGIN+y*CELL - CELL/2 +1, CELL-2, CELL-2);
+          cracks(MARGIN+x*CELL, MARGIN+y*CELL);
+        }
+        if(state.freeze[y][x]>0){
+          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--freeze');
+          ctx.fillRect(MARGIN+x*CELL - CELL/2 +1, MARGIN+y*CELL - CELL/2 +1, CELL-2, CELL-2);
+          snow(MARGIN+x*CELL, MARGIN+y*CELL);
+        }
+      }
+    }
+  }
+
+  // grid
+  ctx.strokeStyle='#bfa87a'; ctx.lineWidth=1;
+  for(let i=0;i<BOARD_SIZE;i++){
+    const p = MARGIN + i*CELL;
+    line(p, MARGIN, p, MARGIN+(BOARD_SIZE-1)*CELL);
+    line(MARGIN, p, MARGIN+(BOARD_SIZE-1)*CELL, p);
+  }
+
+  // star points
+  const stars=[3,7,11]; ctx.fillStyle='#8b6b34';
+  stars.forEach(sx=>stars.forEach(sy=>dot(MARGIN+sx*CELL, MARGIN+sy*CELL, 3)));
+
+  // stones
+  if(state){
+    for(let y=0;y<BOARD_SIZE;y++){
+      for(let x=0;x<BOARD_SIZE;x++){
+        const v = state.board[y][x]; if(!v) continue;
+        stone(MARGIN+x*CELL, MARGIN+y*CELL, v===1? '#111':'#fff');
+      }
+    }
+    if(state.lastMove){
+      ctx.strokeStyle = '#22c55e'; ctx.lineWidth=2;
+      ctx.strokeRect(MARGIN+state.lastMove.x*CELL - CELL/2 +3, MARGIN+state.lastMove.y*CELL - CELL/2 +3, CELL-6, CELL-6);
+    }
+  }
+
+  // hover previews
+  if(hoverCell && state){
+    const {x,y} = hoverCell;
+    if(mode==='freeze'){
+      ctx.strokeStyle='rgba(96,165,250,.9)'; ctx.lineWidth=2;
+      ctx.strokeRect(MARGIN+(x-1)*CELL - CELL/2 +2, MARGIN+(y-1)*CELL - CELL/2 +2, CELL*3-4, CELL*3-4);
+    }
+    if(mode==='sand'){
+      const tlx = clamp(x,0,BOARD_SIZE-2), tly = clamp(y,0,BOARD_SIZE-2);
+      ctx.strokeStyle='rgba(239,68,68,.9)'; ctx.lineWidth=2;
+      ctx.strokeRect(MARGIN+tlx*CELL - CELL/2 +2, MARGIN+tly*CELL - CELL/2 +2, CELL*2-4, CELL*2-4);
+    }
+    if(mode==='hurlTarget'){
+      ctx.strokeStyle='rgba(234,179,8,.95)'; ctx.lineWidth=2;
+      ctx.strokeRect(MARGIN+(x-1)*CELL - CELL/2 +2, MARGIN+(y-1)*CELL - CELL/2 +2, CELL*3-4, CELL*3-4);
+    }
+  }
+}
+
+/* ---------- Base state ---------- */
+function emptyState(){
+  return {
+    board: Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
+    freeze: Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
+    ruin:   Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
+    turn: 1,
+    cooldowns: {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}},
+    lastMove: null,
+    lastMoveByPlayer: {1:null,2:null},
+    recent2: {1:[],2:[]},
+    freezeOwner: 0,
+    winner: 0
+  };
+}
+
+/* ---------- Join room and presence ---------- */
+async function joinRoom(){
+  const rid = inputRoom.value.trim(); const name = inputName.value.trim() || '玩家';
+  const seat = Number(seatSel.value);
+  if(!rid){ alert('请输入房间号'); return; }
+  room = rid; nickname = name; mySeat = seat;
+
+  const playersRef = ref(db, `rooms/${room}/players/${uid}`);
+  await set(playersRef, { name:nickname, seat:mySeat, ts: serverTimestamp() });
+  onDisconnect(playersRef).remove();
+
+  roomInfo.textContent = `房间 ${room}（你是${seat===1?'黑':seat===2?'白':'旁观'}）`;
+  conn.textContent = '在线'; conn.className='pill ok';
+  setHint('已进入房间。选择落子或技能。');
+
+  // create state if not exists
+  await runTransaction(ref(db, `rooms/${room}/state`), s => s ? s : emptyState());
+
+  // listen state
+  onValue(ref(db, `rooms/${room}/state`), snap=>{
+    const val = snap.val(); if(!val) return;
+    state = val;
+    updateUI();
+    drawBoard();
+    if(state.winner && state.winner!==prevWinner){
+      prevWinner = state.winner;
+      winText.textContent = (state.winner===1?'黑方':'白方') + '胜利';
+      winModal.style.display='grid';
+    }
+  });
+
+  // chat
+  const cRef = ref(db, `rooms/${room}/chat`);
+  onChildAdded(query(cRef, limitToLast(100)), s=>{
+    const m = s.val();
+    const who = m.uid===uid ? 'me' : 'other';
+    const seatLabel = m.seat===1?'⚫':'⚪';
+    const div = document.createElement('div');
+    div.className = 'msg ' + (who==='me'?'me':'');
+    div.textContent = `${seatLabel} ${m.name}: ${m.text}`;
+    chatList.appendChild(div);
+    chatList.scrollTop = chatList.scrollHeight;
+  });
+}
+btnJoin.onclick = joinRoom;
+
+/* ---------- UI ---------- */
+function updateUI(){
+  if(!state){
+    [btnSand, btnFreeze, btnHurl, btnRewind].forEach(b=>b.disabled=true);
+    return;
+  }
+  const whoText = state.turn===1?'黑方':'白方';
+  turnTag.textContent = `${whoText}回合`;
+  turnTag.className = 'turn ' + (state.turn===1?'black':'white');
+
+  const show = (el, v)=>{ el.textContent = v <= 0 ? '就绪' : `CD ${v}`; el.className = v <= 0 ? 'pill ok' : 'pill cd'; };
+  const myBucket = (mySeat===1||mySeat===2) ? state.cooldowns?.[mySeat] : null;
+  show(cdSand,   myBucket?.sand   ?? 99);
+  show(cdFreeze, myBucket?.freeze ?? 99);
+  show(cdHurl,   myBucket?.hurl   ?? 99);
+  show(cdRewind, myBucket?.rewind ?? 99);
+
+  btnSand.disabled   = !canUse('sand');
+  btnFreeze.disabled = !canUse('freeze');
+  btnHurl.disabled   = !canUse('hurl');
+  btnRewind.disabled = !canUse('rewind');
+
+  setHint(`你是${mySeat===1?'黑':mySeat===2?'白':'旁观'}。每回合只能落子或释放一个技能。`);
+}
+
+/* ---------- Rule helpers ---------- */
+function cellFrozen(x,y){ return state.freeze[y][x]>0; }
+function cellRuined(x,y){ return state.ruin[y][x]>0; }
+function blocked(x,y){ return cellFrozen(x,y) || cellRuined(x,y); }
+
+function checkWin(board,x,y,color){
+  const dirs = [[1,0],[0,1],[1,1],[1,-1]];
+  for(const [dx,dy] of dirs){
+    let c=1; c+=count(board,x,y,dx,dy,color); c+=count(board,x,y,-dx,-dy,color);
+    if(c>=5) return true;
+  }
+  return false;
+}
+function count(board,x,y,dx,dy,color){
+  let k=0,nx=x+dx,ny=y+dy;
+  while(nx>=0&&ny>=0&&nx<BOARD_SIZE&&ny<BOARD_SIZE&&board[ny][nx]===color){k++; nx+=dx; ny+=dy;}
+  return k;
+}
+
+/* ---------- Turn helpers ---------- */
+function decEffects(s){
+  for(let y=0;y<BOARD_SIZE;y++){
+    for(let x=0;x<BOARD_SIZE;x++){
+      if(s.freeze[y][x]>0) s.freeze[y][x]--;
+      if(s.ruin[y][x]>0) s.ruin[y][x]--;
+    }
+  }
+  // clear owner when all freeze gone
+  if(!s.freeze.flat().some(v=>v>0)) s.freezeOwner = 0;
+}
+function nextTurn(s){
+  const opp = 3 - s.turn;
+  s.turn = opp;
+  ['sand','freeze','hurl','rewind'].forEach(k=>{
+    s.cooldowns[opp][k] = Math.max(0, s.cooldowns[opp][k]-1);
+  });
+}
+
+/* ---------- Transactions ---------- */
+// normal place
+async function txPlace(x,y){
+  if(!room||!state) return;
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+
+    // backfill
+    s.board ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.freeze ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.ruin   ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.recent2 ??= {1:[],2:[]};
+    s.lastMoveByPlayer ??= {1:null,2:null};
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
+    if (typeof s.turn !== 'number') s.turn = 1;
+    if (typeof s.freezeOwner !== 'number') s.freezeOwner = 0;
+
+    if(mySeat!==s.turn) return s;
+    if(s.board[y][x]!==0) return s;
+    if(blocked(x,y)) return s;
+
+    // place
+    s.board[y][x]=s.turn;
+    s.lastMove={x,y};
+    s.lastMoveByPlayer[s.turn]={x,y};
+    // maintain last two moves by player
+    const arr = s.recent2[s.turn] || [];
+    arr.unshift({x,y}); s.recent2[s.turn] = arr.slice(0,2);
+
+    if(checkWin(s.board,x,y,s.turn)){ s.winner=s.turn; return s; }
+
+    decEffects(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+// Sand: wipe 2x2 near one of my last two moves, create ruins
+async function txSand(x,y){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
+    s.recent2 ??= {1:[],2:[]};
+    s.ruin ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+
+    if(mySeat!==s.turn) return s;
+    if(s.cooldowns[mySeat].sand>0) return s;
+
+    // must be near one of my last two moves
+    const anchors = s.recent2[mySeat] || [];
+    const inRange = anchors.some(a=>Math.max(Math.abs(x-a.x), Math.abs(y-a.y))<=1);
+    if(!inRange) return s;
+
+    const tlx = clamp(x,0,BOARD_SIZE-2), tly = clamp(y,0,BOARD_SIZE-2);
+    for(let dy=0;dy<2;dy++){
+      for(let dx=0;dx<2;dx++){
+        const cx = tlx+dx, cy = tly+dy;
+        if(s.board[cy][cx]===3-mySeat) s.board[cy][cx]=0;
+        s.ruin[cy][cx] = Math.max(s.ruin[cy][cx], RUIN_TURNS);
+      }
+    }
+    s.cooldowns[mySeat].sand = CD.sand;
+    decEffects(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+// Freeze: 3x3 for 3 turns, exclusive while active
+async function txFreeze(cx,cy){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    s.freeze ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
+    s.freezeOwner ??= 0;
+
+    if(mySeat!==s.turn) return s;
+    if(s.cooldowns[mySeat].freeze>0) return s;
+    if(s.freezeOwner && s.freezeOwner!==mySeat) return s; // opponent cannot cast while active
+
+    for(let dy=-1;dy<=1;dy++){
+      for(let dx=-1;dx<=1;dx++){
+        const x=clamp(cx+dx,0,BOARD_SIZE-1), y=clamp(cy+dy,0,BOARD_SIZE-1);
+        s.freeze[y][x] = Math.max(s.freeze[y][x], FREEZE_TURNS);
+      }
+    }
+    s.freezeOwner = mySeat;
+    s.cooldowns[mySeat].freeze = CD.freeze;
+    decEffects(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+// Hurl: choose my stone then a 3x3 target, throw adjacent opponent stones into it
+async function txHurl(from,to){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
+    s.freeze ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.ruin ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+
+    if(mySeat!==s.turn) return s;
+    if(s.cooldowns[mySeat].hurl>0) return s;
+
+    const {fx,fy}=from, {cx,cy}=to;
+    if(s.board[fy][fx]!==mySeat) return s;
+    if(blocked(fx,fy)) return s;
+
+    // collect adjacent opponent stones
+    const opp = 3-mySeat;
+    const around = [];
+    for(let dy=-1; dy<=1; dy++){
+      for(let dx=-1; dx<=1; dx++){
+        if(dx===0 && dy===0) continue;
+        const x=fx+dx, y=fy+dy;
+        if(x<0||y<0||x>=BOARD_SIZE||y>=BOARD_SIZE) continue;
+        if(s.board[y][x]===opp) around.push({x,y});
+      }
+    }
+    if(around.length===0) return s;
+
+    // collect empty targets in 3x3 target zone
+    const empties = [];
+    for(let dy=-1; dy<=1; dy++){
+      for(let dx=-1; dx<=1; dx++){
+        const x=clamp(cx+dx,0,BOARD_SIZE-1), y=clamp(cy+dy,0,BOARD_SIZE-1);
+        if(s.board[y][x]===0 && !blocked(x,y)) empties.push({x,y});
+      }
+    }
+    if(empties.length===0) return s;
+
+    const moves = Math.min(around.length, empties.length);
+    for(let i=0;i<moves;i++){
+      const src = around[i], dst = empties[i];
+      s.board[src.y][src.x]=0;
+      s.board[dst.y][dst.x]=opp;
+    }
+    s.cooldowns[mySeat].hurl = CD.hurl;
+    decEffects(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+// Rewind: remove opponent's most recent move
+async function txRewind(){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
+    s.lastMoveByPlayer ??= {1:null,2:null};
+
+    if(mySeat!==s.turn) return s;
+    if(s.cooldowns[mySeat].rewind>0) return s;
+
+    const opp = 3-mySeat;
+    const lm = s.lastMoveByPlayer[opp];
+    if(!lm) return s;
+    if(s.board[lm.y][lm.x]!==opp) return s;
+
+    s.board[lm.y][lm.x]=0;
+    s.lastMove = null;
+    s.lastMoveByPlayer[opp]=null;
+
+    s.cooldowns[mySeat].rewind = CD.rewind;
+    decEffects(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+/* ---------- Input handling ---------- */
+canvas.addEventListener('mousemove', ev=>{
+  hoverCell = screenToCell(ev);
+  drawBoard();
+});
+
+canvas.addEventListener('click', ev=>{
+  if(!state || state.winner) return;
+  const {x,y} = screenToCell(ev);
+  if(mySeat===0){ setHint('旁观模式不能操作'); return; }
+
+  if(mode==='place') return txPlace(x,y);
+  if(mode==='sand') return txSand(x,y);
+  if(mode==='freeze') return txFreeze(x,y);
+  if(mode==='hurlSelect'){
+    if(state.board[y][x]!==mySeat){ setHint('请选择己方一子'); return; }
+    if(blocked(x,y)){ setHint('此子被限制，无法使用'); return; }
+    leapFrom = {fx:x, fy:y}; mode='hurlTarget'; setHint('选择任意位置作为3×3目标区域中心');
+    return;
+  }
+  if(mode==='hurlTarget'){
+    const cx = x, cy = y;
+    leapFrom = leapFrom || {fx:x,fy:y};
+    mode='place';
+    const from = {fx:leapFrom.fx, fy:leapFrom.fy}, to = {cx,cy};
+    leapFrom=null; return txHurl(from,to);
+  }
+});
+
+btnPlace.onclick = ()=>{ mode='place'; setHint('落子模式'); };
+btnReset.onclick = resetRoom;
+
+btnSand.onclick = ()=>{ if(canUse('sand')){ mode='sand'; setHint('飞沙走石：点靠近你最近两手之一的2×2区域'); } };
+btnFreeze.onclick = ()=>{ if(canUse('freeze')){ mode='freeze'; setHint('静如止水：点一个中心，冻结3×3三回合'); } };
+btnHurl.onclick = ()=>{ if(canUse('hurl')){ mode='hurlSelect'; setHint('力拔山兮：先点己方一子，再点3×3目标区域中心'); } };
+btnRewind.onclick = ()=>{ if(canUse('rewind')){ txRewind(); } };
+
+function canUse(kind){
+  if (!state) return false;
+  if (mySeat !== 1 && mySeat !== 2) return false;
+  if (state.turn !== mySeat) return false;
+  const cd = state.cooldowns?.[mySeat]?.[kind];
+  if (typeof cd !== 'number' || cd>0) return false;
+  if(kind==='sand'){
+    const arr = state.recent2?.[mySeat] || [];
+    if(arr.length===0) return false;
+  }
+  if(kind==='freeze'){
+    if(state.freezeOwner && state.freezeOwner!==mySeat) return false;
+  }
+  if(kind==='rewind'){
+    const lm = state.lastMoveByPlayer?.[3-mySeat];
+    if(!lm) return false;
+  }
+  return true;
+}
+
+/* ----------
+<script type="module">
+/* ========= 继续：增强 UI / 技能 / 聊天 ========= */
+
+/* --- 1) 更醒目的回合高亮 & 轰塌区绘制 --- */
+function drawRuinOverlay(){
+  if(!state || !state.ruin) return;
+  const R = state.ruin;
+  for(let y=0;y<BOARD_SIZE;y++){
+    for(let x=0;x<BOARD_SIZE;x++){
+      if(R[y]?.[x]>0){
+        const px = MARGIN + x*CELL, py = MARGIN + y*CELL;
+        // 橙红色“废墟”遮罩
+        const c = ctx;
+        c.fillStyle = 'rgba(239,68,68,.18)';
+        c.fillRect(px - CELL/2 +1, py - CELL/2 +1, CELL-2, CELL-2);
+        // 交叉警示线
+        c.strokeStyle = 'rgba(239,68,68,.65)';
+        c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(px - CELL/2 +3, py - CELL/2 +3); c.lineTo(px + CELL/2 -3, py + CELL/2 -3);
+        c.moveTo(px + CELL/2 -3, py - CELL/2 +3); c.lineTo(px - CELL/2 +3, py + CELL/2 -3);
+        c.stroke();
+      }
+    }
+  }
+}
+
+function drawTurnGlow(){
+  // 我方回合给棋盘一个绿色光晕，更明显
+  if(!state) return;
+  const mine = state.turn===mySeat;
+  canvas.style.boxShadow = mine
+    ? '0 0 0 3px #22c55e, 0 0 24px rgba(34,197,94,.6)'
+    : '0 0 0 1px rgba(255,255,255,.08)';
+}
+
+// 包装已有 drawBoard：先调用原版，再叠加废墟与光晕
+const __drawBoard = drawBoard;
+window.drawBoard = function(){ __drawBoard(); drawRuinOverlay(); drawTurnGlow(); };
+
+/* --- 2) 胜利提示 Modal（权威状态里 winner>0 时弹出） --- */
+let winShown=false;
+function ensureWinModal(){
+  if(!state || !state.winner || winShown) return;
+  winShown = true;
+  const who = state.winner===1?'黑方':'白方';
+  const mask = document.createElement('div');
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:9999;';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#0e1628;border:1px solid rgba(255,255,255,.08);padding:20px 22px;border-radius:14px;color:#e5e7eb;text-align:center;width:min(92vw,420px)';
+  box.innerHTML = `<h3 style="margin:0 0 8px 0;font-size:20px">${who}胜利</h3>
+  <p style="margin:0 0 12px 0;color:#cbd5e1;font-size:14px">点“新局”开始下一把</p>
+  <button id="__win_close" style="background:#1f2937;color:#e5e7eb;padding:8px 12px;border-radius:10px;border:none;cursor:pointer">知道了</button>`;
+  mask.appendChild(box); document.body.appendChild(mask);
+  document.getElementById('__win_close').onclick=()=>mask.remove();
+}
+
+/* --- 3) 追加一个“时光回溯”按钮（新技能） --- */
+(function ensureRewindButton(){
+  const row = btnLeap.parentElement;
+  const btn = document.createElement('button');
+  btn.id = 'skillRewind';
+  btn.className = 'btn';
+  btn.innerHTML = `时光回溯 <span id="cdRewind" class="pill cd">CD 0</span>`;
+  row.appendChild(btn);
+  window.btnRewind = btn;
+  window.cdRewind = document.getElementById('cdRewind');
+  btn.onclick = ()=> canUse('rewind') && txRewind();
+})();
+
+/* 包装 updateUI：补充新 CD 和禁用逻辑，并显示当前回合文案 */
+const __updateUI = updateUI;
+window.updateUI = function(){
+  __updateUI && __updateUI();
+  if(!state) return;
+  const who = state.turn===1?'黑方':'白方';
+  // 新技能 CD
+  const myCd = state.cooldowns?.[mySeat];
+  if (window.cdRewind){
+    const v = myCd?.rewind ?? 99;
+    cdRewind.textContent = v<=0?'就绪':`CD ${v}`;
+    cdRewind.className = v<=0?'pill ok':'pill cd';
+    if(window.btnRewind) btnRewind.disabled = !canUse('rewind');
+  }
+  setHint(`${who}回合。你是${mySeat===1?'黑':mySeat===2?'白':'旁观'}。`);
+  ensureWinModal();
+};
+
+/* --- 4) 规则辅助与通用衰减（把 decFreeze 扩展为也衰减“废墟区”并管理 freezeOwner） --- */
+const __decFreeze = decFreeze;
+window.decFreeze = function(s){
+  __decFreeze(s); // 原有冻结 -1
+  // 废墟区 -1
+  s.ruin = s.ruin ?? Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+  for(let y=0;y<BOARD_SIZE;y++){
+    for(let x=0;x<BOARD_SIZE;x++){
+      if(s.ruin[y][x]>0) s.ruin[y][x]--;
+    }
+  }
+  // 若冻结全消，解除“静如止水”独占权
+  if(s.freezeOwner){
+    let any=false;
+    for(let y=0;y<BOARD_SIZE;y++){
+      for(let x=0;x<BOARD_SIZE;x++){
+        if(s.freeze?.[y]?.[x]>0){ any=true; break; }
+      }
+      if(any) break;
+    }
+    if(!any) s.freezeOwner = 0;
+  }
+};
+
+/* --- 5) 覆盖技能事务：飞沙走石 / 静如止水 / 力拔山兮（投掷） / 时光回溯 --- */
+
+// 5.1 强化版“飞沙走石”—— 选择一个 2×2 区域（需在我方最近 2 步附近），清空其中对手棋子，并把这 2×2 标记为两回合“废墟”
+window.txSand = async function(cx,cy){
+  if(!room||!state) return;
+  // 传进来的 cx、cy 是点击格坐标，把它作为 2×2 的左上角
+  const x0 = clamp(cx,0,BOARD_SIZE-2), y0 = clamp(cy,0,BOARD_SIZE-2);
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    // 兜底
+    s.board = s.board ?? Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.freeze = s.freeze ?? Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.ruin = s.ruin ?? Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.recent2 = s.recent2 ?? {1:[],2:[]};
+    s.cooldowns = s.cooldowns ?? {1:{},2:{}};
+
+    if(mySeat!==s.turn) return s;
+    const cd = s.cooldowns[mySeat].sand ?? 0;
+    if(cd>0) return s;
+
+    // 必须靠近我方最近两步（Chebyshev ≤ 1）
+    const recent = s.recent2[mySeat] || [];
+    const near = recent.some(mv=>{
+      return (Math.abs(mv.x - x0)<=1 && Math.abs(mv.y - y0)<=1)
+          || (Math.abs(mv.x - (x0+1))<=1 && Math.abs(mv.y - (y0+1))<=1);
+    });
+    if(!near) return s;
+
+    const opp = 3 - mySeat;
+    for(let dy=0;dy<2;dy++){
+      for(let dx=0;dx<2;dx++){
+        const x=x0+dx, y=y0+dy;
+        if(s.board[y][x]===opp) s.board[y][x]=0;
+        s.ruin[y][x] = Math.max(s.ruin[y][x], 2); // 两回合不可落子
+      }
+    }
+    s.cooldowns[mySeat].sand = (CD?.sand ?? 3);
+    decFreeze(s);
+    nextTurn(s);
+    return s;
+  });
+};
+
+// 5.2 强化版“静如止水”—— 冻结 3 回合，且冻结期间 freezeOwner=我方，对手不能再用该技能
+window.txFreeze = async function(cx,cy){
+  if(!room||!state) return;
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    s.freeze = s.freeze ?? Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.cooldowns = s.cooldowns ?? {1:{},2:{}};
+    if(mySeat!==s.turn) return s;
+    const cd = s.cooldowns[mySeat].freeze ?? 0;
+    if(cd>0) return s;
+    // 若对手已经占有 freezeOwner，不允许我方“夺走”
+    if(s.freezeOwner && s.freezeOwner!==mySeat) return s;
+
+    for(let dy=-1;dy<=1;dy++){
+      for(let dx=-1;dx<=1;dx++){
+        const x=clamp(cx+dx,0,BOARD_SIZE-1), y=clamp(cy+dy,0,BOARD_SIZE-1);
+        s.freeze[y][x] = Math.max(s.freeze[y][x], 3); // 3 回合
+      }
+    }
+    s.freezeOwner = mySeat;                  // 独占权
+    s.cooldowns[mySeat].freeze = (CD?.freeze ?? 4);
+    decFreeze(s);
+    nextTurn(s);
+    return s;
+  });
+};
+
+// 5.3 “力拔山兮”—— 先选我方一子，再选一个 3×3 区域中心，把紧邻该子的所有对手棋子丢进这个 3×3 的空位
+let throwFrom=null;
+btnLeap.onclick = ()=>{ if(!canUse('leap')) return; mode='leapSelect'; setHint('力拔山兮：先点己方一子，再点一个3×3区域中心'); };
+canvas.addEventListener('click', ev=>{
+  if(!state || state.winner) return;
+  const {x,y} = screenToCell(ev);
+  if(mode==='leapSelect'){
+    if(state.board[y][x]!==mySeat){ setHint('请选择己方一子'); return; }
+    throwFrom = {x,y}; mode='leapTarget'; setHint('再点一个3×3区域中心');
+    return;
+  }
+  if(mode==='leapTarget'){
+    const cx=x, cy=y;
+    mode='place';
+    txLeapThrow(throwFrom, {cx,cy});
+    throwFrom=null;
+    return;
+  }
+});
+
+async function txLeapThrow(from, target){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    s.board = s.board ?? Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.cooldowns = s.cooldowns ?? {1:{},2:{}};
+    if(mySeat!==s.turn) return s;
+    const cd = s.cooldowns[mySeat].leap ?? 0;
+    if(cd>0) return s;
+
+    const {x:fx,y:fy} = from, {cx,cy} = target;
+    if(s.board[fy]?.[fx]!==mySeat) return s;
+
+    // 收集相邻 8 格中的对手棋子
+    const opp = 3-mySeat;
+    const around=[];
+    for(let dy=-1;dy<=1;dy++){
+      for(let dx=-1;dx<=1;dx++){
+        if(dx===0 && dy===0) continue;
+        const x=fx+dx, y=fy+dy;
+        if(x<0||y<0||x>=BOARD_SIZE||y>=BOARD_SIZE) continue;
+        if(s.board[y][x]===opp) around.push({x,y});
+      }
+    }
+    if(around.length===0) return s; // 没有可投掷对象
+
+    // 目标 3×3 的空位
+    const slots=[];
+    for(let dy=-1;dy<=1;dy++){
+      for(let dx=-1;dx<=1;dx++){
+        const x=clamp(cx+dx,0,BOARD_SIZE-1), y=clamp(cy+dy,0,BOARD_SIZE-1);
+        if(s.board[y][x]===0 && (s.freeze?.[y]?.[x]||0)===0 && (s.ruin?.[y]?.[x]||0)===0) slots.push({x,y});
+      }
+    }
+    if(slots.length<around.length) return s; // 空位不足，作废（避免“凭空消子”）
+
+    // 按顺序把对手棋子“丢”到 slots
+    around.forEach((p,i)=>{
+      s.board[p.y][p.x]=0;
+      const t = slots[i];
+      s.board[t.y][t.x]=opp;
+    });
+
+    s.cooldowns[mySeat].leap = (CD?.leap ?? 4);
+    decFreeze(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+// 5.4 新技能“时光回溯”—— 移除对手最近一步（不改变你当前回合）
+async function txRewind(){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    s.board = s.board ?? Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.recent2 = s.recent2 ?? {1:[],2:[]};
+    s.cooldowns = s.cooldowns ?? {1:{},2:{}};
+    if(mySeat!==s.turn) return s;
+    const cd = s.cooldowns[mySeat].rewind ?? 0;
+    if(cd>0) return s;
+
+    const opp = 3-mySeat;
+    const lm = s.lastMoveByPlayer?.[opp];
+    if(!lm) return s;
+
+    if(s.board[lm.y]?.[lm.x]===opp) s.board[lm.y][lm.x]=0;
+    // 维护 recent2：把对手最近一次弹出
+    if(Array.isArray(s.recent2[opp]) && s.recent2[opp].length>0){
+      s.recent2[opp].pop();
+    }
+    s.cooldowns[mySeat].rewind = (CD?.rewind ?? 5);
+    // 使用技能也算占用一回合
+    decFreeze(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+/* --- 6) 进入房间时：维护 recent2 / ruin / freezeOwner 等字段，并开启聊天监听 --- */
+function startChat(){
+  // 动态插入一个极简聊天 UI（放到状态面板里）
+  const panel = playersBox.closest('.panel');
+  if(!panel || document.getElementById('__chat_box')) return;
+  const wrap = document.createElement('div');
+  wrap.id='__chat_box';
+  wrap.innerHTML = `
+    <h4 style="margin:12px 0 6px">聊天室</h4>
+    <div id="chatList" style="height:180px;overflow:auto;background:#0b1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px;font-size:14px"></div>
+    <div class="row" style="margin-top:8px">
+      <input id="chatMsg" placeholder="输入消息并回车" style="flex:1 1 200px" />
+      <button id="chatSend" class="btn">发送</button>
+    </div>`;
+  panel.appendChild(wrap);
+
+  const chatList = document.getElementById('chatList');
+  const chatMsg  = document.getElementById('chatMsg');
+  const chatSend = document.getElementById('chatSend');
+
+  function renderChat(obj){
+    chatList.innerHTML = '';
+    const items = Object.entries(obj||{}).sort((a,b)=>a[0].localeCompare(b[0]));
+    items.forEach(([k,v])=>{
+      const div=document.createElement('div');
+      const when = new Date(v.ts||Date.now()).toLocaleTimeString();
+      div.innerHTML = `<span style="color:#94a3b8">[${when}]</span> <b>${v.name||'玩家'}</b>: ${v.msg}`;
+      chatList.appendChild(div);
+    });
+    chatList.scrollTop = chatList.scrollHeight;
+  }
+
+  onValue(ref(db, `rooms/${room}/chat`), snap=>{
+    renderChat(snap.val());
+  });
+
+  function send(){
+    const msg = (chatMsg.value||'').trim();
+    if(!msg) return;
+    const key = Date.now()+'_'+uid.slice(0,6);
+    set(ref(db, `rooms/${room}/chat/${key}`), { uid, name:nickname||('玩家'+uid.slice(0,4)), msg, ts: Date.now() });
+    chatMsg.value='';
+  }
+  chatSend.onclick = send;
+  chatMsg.addEventListener('keydown', e=>{ if(e.key==='Enter') send(); });
+}
+
+// 包装 joinRoom：补充缺失字段 + recent2 维护 + 聊天启动
+const __joinRoom = joinRoom;
+window.joinRoom = async function(){
+  await __joinRoom();
+  // 迁移/兜底一次房间结构
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s) return s;
+    s.ruin = s.ruin ?? Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.recent2 = s.recent2 ?? {1:[],2:[]};
+    s.freezeOwner = s.freezeOwner ?? 0;
+    s.cooldowns = s.cooldowns ?? {1:{sand:0,freeze:0,leap:0,rewind:0}, 2:{sand:0,freeze:0,leap:0,rewind:0}};
+    return s;
+  });
+  startChat();
+};
+
+// 维护我方最近两步：包一层 txPlace，落子成功后把坐标压入 recent2
+const __txPlace = txPlace;
+window.txPlace = async function(x,y){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    s.recent2 = s.recent2 ?? {1:[],2:[]};
+    return s;
+  });
+  await __txPlace(x,y);
+  // txPlace 内已切换回合，这里不再额外处理
+};
+
+</script>
