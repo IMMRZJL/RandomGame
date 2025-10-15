@@ -114,15 +114,15 @@ import {
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
 
 /* Replace with your own config */
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR.firebaseapp.com",
-  databaseURL: "https://YOUR-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "YOUR",
-  storageBucket: "YOUR.appspot.com",
-  messagingSenderId: "YOUR",
-  appId: "YOUR_APP_ID"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyARTxHp8gi-UR9bY5IVSWxUPiSzCawzdsE",
+    authDomain: "sfiar-606ea.firebaseapp.com",
+    databaseURL: "https://sfiar-606ea-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "sfiar-606ea",
+    storageBucket: "sfiar-606ea.appspot.com",
+    messagingSenderId: "153196240063",
+    appId: "1:153196240063:web:ae178909438892a5a1fa0a"
+  };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
@@ -656,3 +656,4 @@ chatInput.addEventListener('keydown', e=>{
 drawBoard();
 setHint('请输入房间号并加入');
 </script>
+
