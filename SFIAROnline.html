@@ -87,6 +87,9 @@
       <button id="skillFreeze" class="btn">静如止水 <span id="cdFreeze" class="pill cd">CD 0</span></button>
       <button id="skillHurl" class="btn">力拔山兮 <span id="cdHurl" class="pill cd">CD 0</span></button>
       <button id="skillRewind" class="btn">回溯时光 <span id="cdRewind" class="pill cd">CD 0</span></button>
+      <!-- 新增两个技能按钮 -->
+      <button id="skillSimo" class="btn">四面楚歌 <span id="cdSimo" class="pill cd">CD 0</span></button>
+      <button id="skillGenius" class="btn">神来一笔 <span id="cdGenius" class="pill cd">CD 0</span></button>
     </div>
 
     <p id="hint" style="color:#94a3b8; margin-top:8px">提示会显示在这里</p>
@@ -119,8 +122,10 @@
   <ol style="margin:6px 0 0 18px; color:#cbd5e1; line-height:1.55">
     <li><b>飞沙走石</b>：以你最近两手之一为中心 8 邻域内，选定一个 2×2 区域，清除区域内对方棋子，并生成“废墟”阻挡 2 回合。冷却 5 回合。</li>
     <li><b>静如止水</b>：以点击格为中心的 3×3 区域冻结 3 回合，仅一方可同时维持冻结。冷却 5 回合。</li>
-    <li><b>力拔山兮</b>：先选自己棋子，再选目标中心，尝试把相邻对手棋子“抛掷”到该 3×3 区域的空位。冷却 5 回合。</li>
+    <li><b>力拔山兮</b>（改版）：先选自己一子，再选目标中心，把该己子与邻近随机一颗对方子，分别甩到目标 3×3 的两个随机空位。冷却 5 回合。</li>
     <li><b>回溯时光</b>：移除对手上一手，并在该格生成“时空黑洞”，3 回合内双方均不得在此落子。冷却 6 回合。</li>
+    <li><b>四面楚歌</b>（新增）：若己方某子被 3×3 八邻全部为对方子所包围，点该子可随机移除其周围两颗对方子。冷却 5 回合。</li>
+    <li><b>神来一笔</b>（新增）：点击后随机高亮一个空位，再次点击“神来一笔”确认在该处落子；也可点“落子模式”放弃。落子带一个简短的缩放动画。冷却 5 回合。</li>
     <li>预览：非己方回合或处于冷却时仍可点击技能进行<strong>效果预览</strong>，但无法实际释放。</li>
   </ol>
 </div>
@@ -157,17 +162,20 @@ const MARGIN = 20;
 const FREEZE_TURNS = 3;
 const RUIN_TURNS = 2;
 const VOID_TURNS = 3;
-const CD = { sand:5, freeze:5, hurl:5, rewind:6 };
+// 扩展 CD，新增 simo、genius
+const CD = { sand:5, freeze:5, hurl:5, rewind:6, simo:5, genius:5 };
 
 /* ---------- Local state ---------- */
 let room = null, uid = crypto.randomUUID();
 let mySeat = 0; // 1 black, 2 white, 0 spectator
 let nickname = "";
 let state = null; // authoritative
-let mode = 'place'; // place | sand | freeze | hurlSelect | hurlTarget | rewindPreview
+// 扩展可用模式
+let mode = 'place'; // place | sand | freeze | hurlSelect | hurlTarget | rewindPreview | simo | geniusPreview
 let leapFrom = null; // for hurl
 let hoverCell = null;
 let prevWinner = 0;
+let geniusPick = null; // 神来一笔预选空位
 
 /* ---------- DOM ---------- */
 const canvas = document.getElementById('board');
@@ -186,10 +194,15 @@ const btnSand = document.getElementById('skillSand');
 const btnFreeze = document.getElementById('skillFreeze');
 const btnHurl = document.getElementById('skillHurl');
 const btnRewind = document.getElementById('skillRewind');
+// 新增按钮与 CD 节点
+const btnSimo = document.getElementById('skillSimo');
+const btnGenius = document.getElementById('skillGenius');
 const cdSand = document.getElementById('cdSand');
 const cdFreeze = document.getElementById('cdFreeze');
 const cdHurl = document.getElementById('cdHurl');
 const cdRewind = document.getElementById('cdRewind');
+const cdSimo = document.getElementById('cdSimo');
+const cdGenius = document.getElementById('cdGenius');
 const chatList = document.getElementById('chatList');
 const chatInput = document.getElementById('chatInput');
 const chatSend = document.getElementById('chatSend');
@@ -244,7 +257,11 @@ function ring(x,y,color){
 function rectStroke(x,y,w,h,style='rgba(234,179,8,.95)'){
   ctx.strokeStyle=style; ctx.lineWidth=2; ctx.strokeRect(x,y,w,h);
 }
-
+function setHint(t){ if(hint) hint.textContent = t; }
+function sysMsg(t){
+  const div=document.createElement('div'); div.className='msg sys'; div.textContent=t;
+  chatList.appendChild(div); chatList.scrollTop=chatList.scrollHeight;
+}
 function screenToCell(ev){
   const rect=canvas.getBoundingClientRect();
   const cx = ev.clientX ?? ev.touches?.[0]?.clientX;
@@ -252,10 +269,38 @@ function screenToCell(ev){
   const x = ((cx-rect.left)-MARGIN)/CELL, y = ((cy-rect.top)-MARGIN)/CELL;
   return {x: clamp(Math.round(x),0,BOARD_SIZE-1), y: clamp(Math.round(y),0,BOARD_SIZE-1)};
 }
-function setHint(t){ if(hint) hint.textContent = t; }
-function sysMsg(t){
-  const div=document.createElement('div'); div.className='msg sys'; div.textContent=t;
-  chatList.appendChild(div); chatList.scrollTop=chatList.scrollHeight;
+// 新增 - 被包围判定与候选列表、随机空位
+function isSurrounded(x,y,me){
+  if(x===0||y===0||x===BOARD_SIZE-1||y===BOARD_SIZE-1) return false; // 边界不算
+  const opp = 3-me;
+  for(let dy=-1;dy<=1;dy++){
+    for(let dx=-1;dx<=1;dx++){
+      if(dx===0&&dy===0) continue;
+      const nx=x+dx, ny=y+dy;
+      if(nx<0||ny<0||nx>=BOARD_SIZE||ny>=BOARD_SIZE) return false;
+      if(state.board[ny][nx]!==opp) return false;
+    }
+  }
+  return true;
+}
+function listSimoCandidates(me){
+  const arr=[];
+  for(let y=1;y<BOARD_SIZE-1;y++){
+    for(let x=1;x<BOARD_SIZE-1;x++){
+      if(state.board[y][x]===me && isSurrounded(x,y,me)) arr.push({x,y});
+    }
+  }
+  return arr;
+}
+function pickRandomEmpty(){
+  const empty=[];
+  for(let y=0;y<BOARD_SIZE;y++){
+    for(let x=0;x<BOARD_SIZE;x++){
+      if(state.board[y][x]===0 && !blocked(x,y)) empty.push({x,y});
+    }
+  }
+  if(empty.length===0) return null;
+  return empty[Math.floor(Math.random()*empty.length)];
 }
 
 /* ---------- Drawing ---------- */
@@ -290,20 +335,26 @@ function drawBoard(){
   ctx.strokeStyle='#bfa87a'; ctx.lineWidth=1;
   for(let i=0;i<BOARD_SIZE;i++){
     const p = MARGIN + i*CELL;
-    line(p, MARGIN, p, MARGIN+(BOARD_SIZE-1)*CELL);
-    line(MARGIN, p, MARGIN+(BOARD_SIZE-1)*CELL, p);
+    ctx.beginPath(); ctx.moveTo(p, MARGIN); ctx.lineTo(p, MARGIN+(BOARD_SIZE-1)*CELL); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(MARGIN, p); ctx.lineTo(MARGIN+(BOARD_SIZE-1)*CELL, p); ctx.stroke();
   }
 
   // star points
   const stars=[3,7,11]; ctx.fillStyle='#8b6b34';
-  stars.forEach(sx=>stars.forEach(sy=>dot(MARGIN+sx*CELL, MARGIN+sy*CELL, 3)));
+  stars.forEach(sx=>stars.forEach(sy=>{ ctx.beginPath(); ctx.arc(MARGIN+sx*CELL, MARGIN+sy*CELL, 3, 0, Math.PI*2); ctx.fill(); }));
 
   // stones
   if(state){
     for(let y=0;y<BOARD_SIZE;y++){
       for(let x=0;x<BOARD_SIZE;x++){
         const v = state.board[y][x]; if(!v) continue;
-        stone(MARGIN+x*CELL, MARGIN+y*CELL, v===1? '#111':'#fff');
+        const color = v===1? '#111' : '#fff';
+        const cx=MARGIN+x*CELL, cy=MARGIN+y*CELL;
+        const r = CELL*0.42;
+        const g = ctx.createRadialGradient(cx-r*0.25,cy-r*0.25,r*0.2,cx,cy,r);
+        if(color==='#fff'){g.addColorStop(0,'#fff'); g.addColorStop(1,'#d1d5db');}
+        else{g.addColorStop(0,'#222'); g.addColorStop(1,'#000');}
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
       }
     }
     if(state.lastMove){
@@ -336,6 +387,14 @@ function drawBoard(){
       vortex(MARGIN+lm.x*CELL, MARGIN+lm.y*CELL);
     }
   }
+  // 新增：simo 候选高亮与 genius 预览高亮
+  if(mode==='simo' && state){
+    const cands = listSimoCandidates(state.turn);
+    cands.forEach(({x,y})=> ring(MARGIN+x*CELL, MARGIN+y*CELL, 'rgba(234,179,8,.95)'));
+  }
+  if(mode==='geniusPreview' && geniusPick){
+    ring(MARGIN+geniusPick.x*CELL, MARGIN+geniusPick.y*CELL, 'rgba(16,185,129,.95)');
+  }
 }
 
 /* ---------- Base state ---------- */
@@ -346,7 +405,8 @@ function emptyState(){
     ruin:   Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
     voids:  Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
     turn: 1,
-    cooldowns: {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}},
+    // 扩展 cooldowns
+    cooldowns: {1:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}},
     lastMove: null,
     lastMoveByPlayer: {1:null,2:null},
     recent2: {1:[],2:[]},
@@ -419,7 +479,7 @@ btnJoin.onclick = joinRoom;
 /* ---------- UI ---------- */
 function updateUI(){
   if(!state){
-    [btnSand, btnFreeze, btnHurl, btnRewind].forEach(b=>b.disabled=true);
+    [btnSand, btnFreeze, btnHurl, btnRewind, btnSimo, btnGenius].forEach(b=>b.disabled=true);
     return;
   }
   const whoText = state.turn===1?'黑方':'白方';
@@ -432,9 +492,11 @@ function updateUI(){
   show(cdFreeze, myBucket?.freeze ?? 99);
   show(cdHurl,   myBucket?.hurl   ?? 99);
   show(cdRewind, myBucket?.rewind ?? 99);
+  show(cdSimo,   myBucket?.simo   ?? 99);
+  show(cdGenius, myBucket?.genius ?? 99);
 
   // 不再禁用技能按钮，允许预览
-  [btnSand, btnFreeze, btnHurl, btnRewind].forEach(b=>b.disabled=false);
+  [btnSand, btnFreeze, btnHurl, btnRewind, btnSimo, btnGenius].forEach(b=>b.disabled=false);
 
   setHint(`你是${mySeat===1?'黑':mySeat===2?'白':'旁观'}。每回合只能落子或释放一个技能。`);
 }
@@ -473,7 +535,8 @@ function decEffects(s){
 function nextTurn(s){
   const opp = 3 - s.turn;
   s.turn = opp;
-  ['sand','freeze','hurl','rewind'].forEach(k=>{
+  // 冷却在对手回合开始时-1
+  ['sand','freeze','hurl','rewind','simo','genius'].forEach(k=>{
     s.cooldowns[opp][k] = Math.max(0, s.cooldowns[opp][k]-1);
   });
 }
@@ -491,7 +554,7 @@ async function txPlace(x,y){
     s.voids  ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
     s.recent2 ??= {1:[],2:[]};
     s.lastMoveByPlayer ??= {1:null,2:null};
-    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}};
     if (typeof s.turn !== 'number') s.turn = 1;
     if (typeof s.freezeOwner !== 'number') s.freezeOwner = 0;
 
@@ -518,7 +581,7 @@ async function txPlace(x,y){
 async function txSand(x,y){
   await runTransaction(ref(db, `rooms/${room}/state`), s=>{
     if(!s || s.winner) return s;
-    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}};
     s.recent2 ??= {1:[],2:[]};
     s.ruin ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
 
@@ -549,7 +612,7 @@ async function txFreeze(cx,cy){
   await runTransaction(ref(db, `rooms/${room}/state`), s=>{
     if(!s || s.winner) return s;
     s.freeze ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
-    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}};
     s.freezeOwner ??= 0;
 
     if(mySeat!==s.turn) return s;
@@ -570,11 +633,11 @@ async function txFreeze(cx,cy){
   });
 }
 
-// Hurl: choose my stone then a 3x3 target, throw adjacent opponent stones into it
+// Hurl (改版): choose my stone then a 3x3 target, throw one adjacent opponent stone AND my chosen stone into two random empty cells in target
 async function txHurl(from,to){
   await runTransaction(ref(db, `rooms/${room}/state`), s=>{
     if(!s || s.winner) return s;
-    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}};
     s.freeze ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
     s.ruin ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
 
@@ -604,14 +667,21 @@ async function txHurl(from,to){
         if(s.board[y][x]===0 && !blocked(x,y)) empties.push({x,y});
       }
     }
-    if(empties.length===0) return s;
+    if(empties.length<2) return s;
 
-    const moves = Math.min(around.length, empties.length);
-    for(let i=0;i<moves;i++){
-      const src = around[i], dst = empties[i];
-      s.board[src.y][src.x]=0;
-      s.board[dst.y][dst.x]=opp;
-    }
+    // 随机选一颗对方邻子
+    const srcOpp = around[Math.floor(Math.random()*around.length)];
+    // 随机两个不同空位
+    for(let i=empties.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [empties[i],empties[j]]=[empties[j],empties[i]]; }
+    const dstMy = empties[0];
+    const dstOpp = empties[1];
+
+    // 执行移动：清空原位，填充目标
+    s.board[fy][fx]=0;
+    s.board[srcOpp.y][srcOpp.x]=0;
+    s.board[dstMy.y][dstMy.x]=mySeat;
+    s.board[dstOpp.y][dstOpp.x]=opp;
+
     s.cooldowns[mySeat].hurl = CD.hurl;
     decEffects(s);
     nextTurn(s);
@@ -623,7 +693,7 @@ async function txHurl(from,to){
 async function txRewind(){
   await runTransaction(ref(db, `rooms/${room}/state`), s=>{
     if(!s || s.winner) return s;
-    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}};
     s.lastMoveByPlayer ??= {1:null,2:null};
     s.voids ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
 
@@ -646,6 +716,75 @@ async function txRewind(){
     return s;
   });
   sysMsg('回溯时光：对手上一手被移除，原位生成黑洞 3 回合');
+}
+
+// Simo: 四面楚歌 - 选择一枚被完全包围的己方子，随机移除其周围两颗对方子
+async function txSimo(x,y){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}};
+    if(mySeat!==s.turn) return s;
+    if(s.cooldowns[mySeat].simo>0) return s;
+    if(s.board[y][x]!==mySeat) return s;
+
+    // 确认被包围
+    const opp = 3-mySeat;
+    const around = [];
+    for(let dy=-1; dy<=1; dy++){
+      for(let dx=-1; dx<=1; dx++){
+        if(dx===0 && dy===0) continue;
+        const nx=x+dx, ny=y+dy;
+        if(nx<0||ny<0||nx>=BOARD_SIZE||ny>=BOARD_SIZE) return s;
+        if(s.board[ny][nx]!==opp) return s;
+        around.push({x:nx,y:ny});
+      }
+    }
+    if(around.length<2) return s;
+
+    // 打乱并移除两颗
+    for(let i=around.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [around[i],around[j]]=[around[j],around[i]]; }
+    const a=around[0], b=around[1];
+    s.board[a.y][a.x]=0; s.board[b.y][b.x]=0;
+
+    s.cooldowns[mySeat].simo = CD.simo;
+    decEffects(s);
+    nextTurn(s);
+    return s;
+  });
+}
+
+// Genius: 神来一笔 - 直接在指定空位落子（预览由本地产生）
+async function txGenius(x,y){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s || s.winner) return s;
+    // backfill
+    s.board ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.freeze ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.ruin   ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.voids  ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.recent2 ??= {1:[],2:[]};
+    s.lastMoveByPlayer ??= {1:null,2:null};
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}};
+    if (typeof s.turn !== 'number') s.turn = 1;
+
+    if(mySeat!==s.turn) return s;
+    if(s.cooldowns[mySeat].genius>0) return s;
+    if(s.board[y][x]!==0) return s;
+    if(blocked(x,y)) return s;
+
+    s.board[y][x]=s.turn;
+    s.lastMove={x,y};
+    s.lastMoveByPlayer[s.turn]={x,y};
+    const arr = s.recent2[s.turn] || [];
+    arr.unshift({x,y}); s.recent2[s.turn] = arr.slice(0,2);
+
+    s.cooldowns[mySeat].genius = CD.genius;
+
+    if(checkWin(s.board,x,y,s.turn)){ s.winner=s.turn; return s; }
+    decEffects(s);
+    nextTurn(s);
+    return s;
+  });
 }
 
 /* ---------- Reset room ---------- */
@@ -685,9 +824,24 @@ canvas.addEventListener('click', ev=>{
     const from = {fx:leapFrom.fx, fy:leapFrom.fy}, to = {cx,cy};
     leapFrom=null; return txHurl(from,to);
   }
+  if(mode==='simo'){
+    // 仅允许点击高亮候选
+    const cands = listSimoCandidates(state.turn);
+    if(!cands.some(p=>p.x===x && p.y===y)){ setHint('请选择高亮的己方被包围棋子'); return; }
+    mode='place'; return txSimo(x,y);
+  }
+  if(mode==='geniusPreview'){
+    // 预览期间点击棋盘不落子，通过按钮二次确认；提示可切回“落子模式”放弃
+    setHint('已抽取空位，再次点击“神来一笔”确认；或点“落子模式”放弃');
+    return;
+  }
 });
 
-btnPlace.onclick = ()=>{ mode='place'; setHint('落子模式'); };
+btnPlace.onclick = ()=>{
+  mode='place'; geniusPick=null; leapFrom=null;
+  setHint('落子模式');
+  drawBoard(); updateUI();
+};
 btnReset.onclick = resetRoom;
 
 // 允许在非己方回合进行预览：始终切换模式，若不可用则仅提示“预览中”
@@ -703,7 +857,7 @@ btnFreeze.onclick = ()=>{
 };
 btnHurl.onclick = ()=>{
   mode='hurlSelect';
-  setHint(canUse('hurl') ? '力拔山兮：先点己方一子，再点3×3目标区域中心' : '力拔山兮（预览）：非己方回合或冷却中，无法释放');
+  setHint(canUse('hurl') ? '力拔山兮：先点己方一子，再点3×3目标区域中心（你与一颗邻近对方子将被甩到目标区的两个空位）' : '力拔山兮（预览）：非己方回合或冷却中，无法释放');
   drawBoard();
 };
 btnRewind.onclick = ()=>{
@@ -727,6 +881,52 @@ btnRewind.onclick = ()=>{
   drawBoard();
 };
 
+// 新增按钮行为：四面楚歌
+btnSimo.onclick = ()=>{
+  mode='simo';
+  if(canUse('simo')){
+    const cands = listSimoCandidates(state.turn);
+    if(cands.length===0){
+      setHint('没有四面楚歌的棋子');
+      mode='place';
+    }else{
+      setHint('四面楚歌：点击高亮的己方被包围棋子');
+    }
+  }else{
+    setHint('四面楚歌（预览）：当前不可释放');
+  }
+  drawBoard();
+};
+
+// 新增按钮行为：神来一笔（两段式确认 + 动画）
+btnGenius.onclick = ()=>{
+  if(mode!=='geniusPreview'){
+    mode='geniusPreview';
+    if(canUse('genius')){
+      geniusPick = pickRandomEmpty();
+      if(!geniusPick){ setHint('没有空位可用'); mode='place'; drawBoard(); return; }
+      setHint('神来一笔：再次点击“神来一笔”确认；或点“落子模式”放弃');
+      drawBoard();
+      // 二次点击确认
+      const once = ()=>{
+        if(mode==='geniusPreview' && geniusPick && canUse('genius')){
+          animateDrop(geniusPick.x, geniusPick.y, state.turn);
+          txGenius(geniusPick.x, geniusPick.y);
+        }
+        btnGenius.removeEventListener('click', once);
+        geniusPick=null; mode='place';
+        drawBoard();
+      };
+      btnGenius.addEventListener('click', once);
+    }else{
+      setHint('神来一笔（预览）：当前不可释放');
+      drawBoard();
+    }
+  }else{
+    // 已在上方 once 绑定处理
+  }
+};
+
 function canUse(kind){
   if (!state) return false;
   if (mySeat !== 1 && mySeat !== 2) return false;
@@ -744,7 +944,34 @@ function canUse(kind){
     const lm = state.lastMoveByPlayer?.[3-mySeat];
     if(!lm) return false;
   }
+  if(kind==='simo'){
+    const cands = listSimoCandidates(mySeat);
+    if(cands.length===0) return false;
+  }
+  if(kind==='genius'){
+    // 仅检查 CD 与回合，具体空位在点击后再选
+  }
   return true;
+}
+
+// 简单缩放落子动画（本地视觉，不写回状态）
+function animateDrop(x,y,player){
+  const cx = MARGIN + x*CELL;
+  const cy = MARGIN + y*CELL;
+  const R = CELL*0.42;
+  const start = performance.now();
+  function frame(now){
+    const t = Math.min(1, (now-start)/220);
+    drawBoard();
+    const r = R*(1.6 - 0.6*t);
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = (player===1)?'#111':'#fff';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    if(t<1) requestAnimationFrame(frame); else drawBoard();
+  }
+  requestAnimationFrame(frame);
 }
 
 /* ---------- Chat send ---------- */
