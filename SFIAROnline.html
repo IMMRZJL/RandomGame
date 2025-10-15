@@ -125,7 +125,7 @@
     <li><b>力拔山兮</b>（改版）：先选自己一子，再选目标中心，把该己子与邻近随机一颗对方子，分别甩到目标 3×3 的两个随机空位。冷却 5 回合。</li>
     <li><b>回溯时光</b>：移除对手上一手，并在该格生成“时空黑洞”，3 回合内双方均不得在此落子。冷却 6 回合。</li>
     <li><b>四面楚歌</b>（新增）：若己方某子被 3×3 八邻全部为对方子所包围，点该子可随机移除其周围两颗对方子。冷却 5 回合。</li>
-    <li><b>神来一笔</b>（新增）：点击后随机高亮一个空位，再次点击“神来一笔”确认在该处落子；也可点“落子模式”放弃。落子带一个简短的缩放动画。冷却 5 回合。</li>
+    <li><b>神来一笔</b>（新增）：接入最新量子AI大模型API后根据其对时局的分析给出即时建议，系统会高亮上佳空位；再次点击“神来一笔”可一键采纳该建议落子，也可点“落子模式”放弃。冷却 5 回合。</li>
     <li>预览：非己方回合或处于冷却时仍可点击技能进行<strong>效果预览</strong>，但无法实际释放。</li>
   </ol>
 </div>
@@ -832,7 +832,7 @@ canvas.addEventListener('click', ev=>{
   }
   if(mode==='geniusPreview'){
     // 预览期间点击棋盘不落子，通过按钮二次确认；提示可切回“落子模式”放弃
-    setHint('已抽取空位，再次点击“神来一笔”确认；或点“落子模式”放弃');
+    setHint('量子大模型建议已生成：再次点击“神来一笔”采纳；或点“落子模式”放弃');
     return;
   }
 });
@@ -905,13 +905,14 @@ btnGenius.onclick = ()=>{
     if(canUse('genius')){
       geniusPick = pickRandomEmpty();
       if(!geniusPick){ setHint('没有空位可用'); mode='place'; drawBoard(); return; }
-      setHint('神来一笔：再次点击“神来一笔”确认；或点“落子模式”放弃');
+      setHint('神来一笔：量子大模型已给出建议位。再次点击“神来一笔”采纳建议；或点“落子模式”忽略');
       drawBoard();
       // 二次点击确认
       const once = ()=>{
         if(mode==='geniusPreview' && geniusPick && canUse('genius')){
           animateDrop(geniusPick.x, geniusPick.y, state.turn);
           txGenius(geniusPick.x, geniusPick.y);
+          setHint('已按量子大模型建议落子');
         }
         btnGenius.removeEventListener('click', once);
         geniusPick=null; mode='place';
@@ -996,3 +997,4 @@ setHint('请输入房间号并加入');
 </script>
 </body>
 </html>
+
