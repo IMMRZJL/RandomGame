@@ -8,6 +8,7 @@
   :root{
     --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#94a3b8;
     --freeze:rgba(56,189,248,.20); --ruin:rgba(239,68,68,.18);
+    --void:rgba(99,102,241,.22);
     --btn:#1f2937; --btn-hover:#374151; --ok:#22c55e; --bad:#ef4444;
   }
   *{box-sizing:border-box}
@@ -16,7 +17,7 @@
   .wrap{max-width:1200px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns:1fr 380px}
   .panel{background:var(--panel); border-radius:16px; padding:14px; box-shadow:0 6px 24px rgba(0,0,0,.3)}
   .title{font-weight:800; margin:0 0 8px 0; display:flex; justify-content:space-between; align-items:center}
-  canvas{display:block; background:#f7e9c5; border-radius:14px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08)}
+  canvas{display:block; background:#f7e9c5; border-radius:14px; box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
   .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
   .btn{background:var(--btn); color:var(--text); border:none; padding:10px 12px; border-radius:12px; cursor:pointer; transition:.15s}
   .btn:hover{background:var(--btn-hover)}
@@ -27,15 +28,21 @@
   .turn.black{background:rgba(0,0,0,.85); color:#fff}
   .turn.white{background:#fff; color:#111; box-shadow:0 0 0 2px rgba(0,0,0,.2) inset}
   input,select{background:#0b1220; border:1px solid rgba(255,255,255,.1); color:#e5e7eb; border-radius:10px; padding:8px 10px}
-  .chat{
-    background:#0b1220; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px; height:200px; overflow:auto;
-    font-size:.92rem; line-height:1.35;
-  }
+
+  .chat{background:#0b1220; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px; height:200px; overflow:auto; font-size:.92rem; line-height:1.35;}
   .chat .msg{margin:2px 0}
   .chat .me{color:#a7f3d0}
   .chat .sys{color:#fde68a}
-  .chatInput{display:flex; gap:8px; margin-top:8px}
+
+  .players{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px}
+  .player{display:flex; align-items:center; gap:8px; background:#0b1220; border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:6px 8px}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .dot.black{background:#111}
+  .dot.white{background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.2) inset}
+  .dot.spec{background:#64748b}
+
   @media(max-width:1024px){ .wrap{grid-template-columns:1fr} }
+
   /* Win modal */
   .win{position:fixed; inset:0; display:none; place-items:center; backdrop-filter:blur(6px); background:rgba(0,0,0,.25); z-index:50}
   .win .box{background:#0e1628; border:1px solid rgba(255,255,255,.08); padding:22px; border-radius:16px; width:min(92vw,420px)}
@@ -84,6 +91,9 @@
 
     <p id="hint" style="color:#94a3b8; margin-top:8px">提示会显示在这里</p>
 
+    <h4 style="margin:12px 0 6px">当前玩家</h4>
+    <div id="players" class="players"></div>
+
     <h4 style="margin:12px 0 6px">聊天室</h4>
     <div id="chatList" class="chat"></div>
     <div class="chatInput">
@@ -96,12 +106,23 @@
 <div id="winModal" class="win">
   <div class="box">
     <h3 id="winText">黑方胜利</h3>
-    <p style="color:#cbd5e1">恭喜获胜。可以开始新局或继续围观。</p>
+    <p id="winMsg" style="color:#cbd5e1">恭喜获胜。</p>
     <div class="row" style="margin-top:10px">
-      <button class="btn" onclick="document.getElementById('winModal').style.display='none'">继续观察</button>
+      <button class="btn" onclick="document.getElementById('winModal').style.display='none'">继续对局</button>
       <button class="btn" id="winReset">新局</button>
     </div>
   </div>
+</div>
+
+<div class="panel" style="max-width:1200px; margin:0 auto 24px; grid-column:1/-1">
+  <h3 class="title" style="margin-bottom:8px">技能说明书</h3>
+  <ol style="margin:6px 0 0 18px; color:#cbd5e1; line-height:1.55">
+    <li><b>飞沙走石</b>：以你最近两手之一为中心 8 邻域内，选定一个 2×2 区域，清除区域内对方棋子，并生成“废墟”阻挡 2 回合。冷却 5 回合。</li>
+    <li><b>静如止水</b>：以点击格为中心的 3×3 区域冻结 3 回合，仅一方可同时维持冻结。冷却 5 回合。</li>
+    <li><b>力拔山兮</b>：先选自己棋子，再选目标中心，尝试把相邻对手棋子“抛掷”到该 3×3 区域的空位。冷却 5 回合。</li>
+    <li><b>回溯时光</b>：移除对手上一手，并在该格生成“时空黑洞”，3 回合内双方均不得在此落子。冷却 6 回合。</li>
+    <li>预览：非己方回合或处于冷却时仍可点击技能进行<strong>效果预览</strong>，但无法实际释放。</li>
+  </ol>
 </div>
 
 <script type="module">
@@ -114,15 +135,15 @@ import {
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
 
 /* Replace with your own config */
-  const firebaseConfig = {
-    apiKey: "AIzaSyARTxHp8gi-UR9bY5IVSWxUPiSzCawzdsE",
-    authDomain: "sfiar-606ea.firebaseapp.com",
-    databaseURL: "https://sfiar-606ea-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "sfiar-606ea",
-    storageBucket: "sfiar-606ea.appspot.com",
-    messagingSenderId: "153196240063",
-    appId: "1:153196240063:web:ae178909438892a5a1fa0a"
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyARTxHp8gi-UR9bY5IVSWxUPiSzCawzdsE",
+  authDomain: "sfiar-606ea.firebaseapp.com",
+  databaseURL: "https://sfiar-606ea-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "sfiar-606ea",
+  storageBucket: "sfiar-606ea.appspot.com",
+  messagingSenderId: "153196240063",
+  appId: "1:153196240063:web:ae178909438892a5a1fa0a"
+};
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
@@ -135,6 +156,7 @@ const CELL = 40;
 const MARGIN = 20;
 const FREEZE_TURNS = 3;
 const RUIN_TURNS = 2;
+const VOID_TURNS = 3;
 const CD = { sand:5, freeze:5, hurl:5, rewind:6 };
 
 /* ---------- Local state ---------- */
@@ -142,7 +164,7 @@ let room = null, uid = crypto.randomUUID();
 let mySeat = 0; // 1 black, 2 white, 0 spectator
 let nickname = "";
 let state = null; // authoritative
-let mode = 'place'; // place | sand | freeze | hurlSelect | hurlTarget
+let mode = 'place'; // place | sand | freeze | hurlSelect | hurlTarget | rewindPreview
 let leapFrom = null; // for hurl
 let hoverCell = null;
 let prevWinner = 0;
@@ -171,8 +193,10 @@ const cdRewind = document.getElementById('cdRewind');
 const chatList = document.getElementById('chatList');
 const chatInput = document.getElementById('chatInput');
 const chatSend = document.getElementById('chatSend');
+const playersBox = document.getElementById('players');
 const winModal = document.getElementById('winModal');
 const winText = document.getElementById('winText');
+const winMsg  = document.getElementById('winMsg');
 document.getElementById('winReset').onclick = ()=>resetRoom();
 
 /* ---------- Helpers ---------- */
@@ -203,6 +227,24 @@ function cracks(x,y){
   ctx.moveTo(x,y-s*0.6);ctx.lineTo(x+s*0.6,y);
   ctx.strokeStyle='rgba(239,68,68,.8)'; ctx.lineWidth=1; ctx.stroke();
 }
+function vortex(x,y){
+  const r=CELL*0.42;
+  const grd=ctx.createRadialGradient(x,y,0,x,y,r);
+  grd.addColorStop(0,'rgba(17,24,39,.95)');
+  grd.addColorStop(1,'rgba(99,102,241,.35)');
+  ctx.fillStyle=grd;
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(99,102,241,.9)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(x,y,r*0.7,0,Math.PI*2); ctx.stroke();
+}
+function ring(x,y,color){
+  ctx.strokeStyle=color; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(x,y,CELL*0.48,0,Math.PI*2); ctx.stroke();
+}
+function rectStroke(x,y,w,h,style='rgba(234,179,8,.95)'){
+  ctx.strokeStyle=style; ctx.lineWidth=2; ctx.strokeRect(x,y,w,h);
+}
+
 function screenToCell(ev){
   const rect=canvas.getBoundingClientRect();
   const cx = ev.clientX ?? ev.touches?.[0]?.clientX;
@@ -211,13 +253,17 @@ function screenToCell(ev){
   return {x: clamp(Math.round(x),0,BOARD_SIZE-1), y: clamp(Math.round(y),0,BOARD_SIZE-1)};
 }
 function setHint(t){ if(hint) hint.textContent = t; }
+function sysMsg(t){
+  const div=document.createElement('div'); div.className='msg sys'; div.textContent=t;
+  chatList.appendChild(div); chatList.scrollTop=chatList.scrollHeight;
+}
 
 /* ---------- Drawing ---------- */
 function drawBoard(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle = '#f7e9c5'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // ruins and freeze base layers
+  // effects base layers
   if(state){
     for(let y=0;y<BOARD_SIZE;y++){
       for(let x=0;x<BOARD_SIZE;x++){
@@ -230,6 +276,11 @@ function drawBoard(){
           ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--freeze');
           ctx.fillRect(MARGIN+x*CELL - CELL/2 +1, MARGIN+y*CELL - CELL/2 +1, CELL-2, CELL-2);
           snow(MARGIN+x*CELL, MARGIN+y*CELL);
+        }
+        if(state.voids[y][x]>0){
+          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--void');
+          ctx.fillRect(MARGIN+x*CELL - CELL/2 +1, MARGIN+y*CELL - CELL/2 +1, CELL-2, CELL-2);
+          vortex(MARGIN+x*CELL, MARGIN+y*CELL);
         }
       }
     }
@@ -261,21 +312,28 @@ function drawBoard(){
     }
   }
 
-  // hover previews
+  // hover previews and skill anchors
   if(hoverCell && state){
     const {x,y} = hoverCell;
     if(mode==='freeze'){
-      ctx.strokeStyle='rgba(96,165,250,.9)'; ctx.lineWidth=2;
-      ctx.strokeRect(MARGIN+(x-1)*CELL - CELL/2 +2, MARGIN+(y-1)*CELL - CELL/2 +2, CELL*3-4, CELL*3-4);
+      rectStroke(MARGIN+(x-1)*CELL - CELL/2 +2, MARGIN+(y-1)*CELL - CELL/2 +2, CELL*3-4, CELL*3-4,'rgba(96,165,250,.9)');
     }
     if(mode==='sand'){
+      // highlight 2x2 placement and show my last two anchors
       const tlx = clamp(x,0,BOARD_SIZE-2), tly = clamp(y,0,BOARD_SIZE-2);
-      ctx.strokeStyle='rgba(239,68,68,.9)'; ctx.lineWidth=2;
-      ctx.strokeRect(MARGIN+tlx*CELL - CELL/2 +2, MARGIN+tly*CELL - CELL/2 +2, CELL*2-4, CELL*2-4);
+      rectStroke(MARGIN+tlx*CELL - CELL/2 +2, MARGIN+tly*CELL - CELL/2 +2, CELL*2-4, CELL*2-4,'rgba(239,68,68,.9)');
+      const anchors = state.recent2?.[mySeat] || [];
+      anchors.forEach(a=> ring(MARGIN+a.x*CELL, MARGIN+a.y*CELL, 'rgba(239,68,68,.95)'));
     }
     if(mode==='hurlTarget'){
-      ctx.strokeStyle='rgba(234,179,8,.95)'; ctx.lineWidth=2;
-      ctx.strokeRect(MARGIN+(x-1)*CELL - CELL/2 +2, MARGIN+(y-1)*CELL - CELL/2 +2, CELL*3-4, CELL*3-4);
+      rectStroke(MARGIN+(x-1)*CELL - CELL/2 +2, MARGIN+(y-1)*CELL - CELL/2 +2, CELL*3-4, CELL*3-4,'rgba(234,179,8,.95)');
+    }
+  }
+  if(mode==='rewindPreview' && state){
+    const lm = state.lastMoveByPlayer?.[3-mySeat];
+    if(lm){
+      ring(MARGIN+lm.x*CELL, MARGIN+lm.y*CELL, 'rgba(99,102,241,.95)');
+      vortex(MARGIN+lm.x*CELL, MARGIN+lm.y*CELL);
     }
   }
 }
@@ -286,6 +344,7 @@ function emptyState(){
     board: Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
     freeze: Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
     ruin:   Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
+    voids:  Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
     turn: 1,
     cooldowns: {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}},
     lastMove: null,
@@ -314,6 +373,17 @@ async function joinRoom(){
   // create state if not exists
   await runTransaction(ref(db, `rooms/${room}/state`), s => s ? s : emptyState());
 
+  // players list
+  onValue(ref(db, `rooms/${room}/players`), snap=>{
+    const val = snap.val()||{};
+    const items = Object.values(val).map(p=>{
+      const dot = p.seat===1 ? '<span class="dot black"></span>' : p.seat===2 ? '<span class="dot white"></span>' : '<span class="dot spec"></span>';
+      const seat = p.seat===1?'黑':p.seat===2?'白':'旁观';
+      return `<div class="player">${dot}<span>${p.name || '玩家'}</span><span class="pill" style="margin-left:auto">${seat}</span></div>`;
+    });
+    playersBox.innerHTML = items.join('') || '<div style="color:#94a3b8">暂无玩家</div>';
+  });
+
   // listen state
   onValue(ref(db, `rooms/${room}/state`), snap=>{
     const val = snap.val(); if(!val) return;
@@ -323,6 +393,10 @@ async function joinRoom(){
     if(state.winner && state.winner!==prevWinner){
       prevWinner = state.winner;
       winText.textContent = (state.winner===1?'黑方':'白方') + '胜利';
+      // winner / loser specific message
+      if(mySeat===state.winner) winMsg.textContent = '恭喜获胜';
+      else if(mySeat===0) winMsg.textContent = '本局已分出胜负';
+      else winMsg.textContent = '再接再厉';
       winModal.style.display='grid';
     }
   });
@@ -359,10 +433,8 @@ function updateUI(){
   show(cdHurl,   myBucket?.hurl   ?? 99);
   show(cdRewind, myBucket?.rewind ?? 99);
 
-  btnSand.disabled   = !canUse('sand');
-  btnFreeze.disabled = !canUse('freeze');
-  btnHurl.disabled   = !canUse('hurl');
-  btnRewind.disabled = !canUse('rewind');
+  // 不再禁用技能按钮，允许预览
+  [btnSand, btnFreeze, btnHurl, btnRewind].forEach(b=>b.disabled=false);
 
   setHint(`你是${mySeat===1?'黑':mySeat===2?'白':'旁观'}。每回合只能落子或释放一个技能。`);
 }
@@ -370,7 +442,8 @@ function updateUI(){
 /* ---------- Rule helpers ---------- */
 function cellFrozen(x,y){ return state.freeze[y][x]>0; }
 function cellRuined(x,y){ return state.ruin[y][x]>0; }
-function blocked(x,y){ return cellFrozen(x,y) || cellRuined(x,y); }
+function cellVoid(x,y){ return state.voids?.[y]?.[x]>0; }
+function blocked(x,y){ return cellFrozen(x,y) || cellRuined(x,y) || cellVoid(x,y); }
 
 function checkWin(board,x,y,color){
   const dirs = [[1,0],[0,1],[1,1],[1,-1]];
@@ -392,6 +465,7 @@ function decEffects(s){
     for(let x=0;x<BOARD_SIZE;x++){
       if(s.freeze[y][x]>0) s.freeze[y][x]--;
       if(s.ruin[y][x]>0) s.ruin[y][x]--;
+      if(s.voids?.[y]?.[x]>0) s.voids[y][x]--;
     }
   }
   if(!s.freeze.flat().some(v=>v>0)) s.freezeOwner = 0;
@@ -414,6 +488,7 @@ async function txPlace(x,y){
     s.board ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
     s.freeze ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
     s.ruin   ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
+    s.voids  ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
     s.recent2 ??= {1:[],2:[]};
     s.lastMoveByPlayer ??= {1:null,2:null};
     s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
@@ -544,12 +619,13 @@ async function txHurl(from,to){
   });
 }
 
-// Rewind: remove opponent's most recent move
+// Rewind: remove opponent's most recent move, spawn a 3-turn void at that cell
 async function txRewind(){
   await runTransaction(ref(db, `rooms/${room}/state`), s=>{
     if(!s || s.winner) return s;
     s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0}};
     s.lastMoveByPlayer ??= {1:null,2:null};
+    s.voids ??= Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
 
     if(mySeat!==s.turn) return s;
     if(s.cooldowns[mySeat].rewind>0) return s;
@@ -562,12 +638,14 @@ async function txRewind(){
     s.board[lm.y][lm.x]=0;
     s.lastMove = null;
     s.lastMoveByPlayer[opp]=null;
+    s.voids[lm.y][lm.x] = Math.max(s.voids[lm.y][lm.x], VOID_TURNS);
 
     s.cooldowns[mySeat].rewind = CD.rewind;
     decEffects(s);
     nextTurn(s);
     return s;
   });
+  sysMsg('回溯时光：对手上一手被移除，原位生成黑洞 3 回合');
 }
 
 /* ---------- Reset room ---------- */
@@ -577,6 +655,7 @@ async function resetRoom(){
   prevWinner = 0;
   winModal.style.display='none';
   setHint('已开始新局');
+  sysMsg('系统：新局已开始');
 }
 
 /* ---------- Input handling ---------- */
@@ -611,10 +690,42 @@ canvas.addEventListener('click', ev=>{
 btnPlace.onclick = ()=>{ mode='place'; setHint('落子模式'); };
 btnReset.onclick = resetRoom;
 
-btnSand.onclick = ()=>{ if(canUse('sand')){ mode='sand'; setHint('飞沙走石：点靠近你最近两手之一的2×2区域'); } };
-btnFreeze.onclick = ()=>{ if(canUse('freeze')){ mode='freeze'; setHint('静如止水：点一个中心，冻结3×3三回合'); } };
-btnHurl.onclick = ()=>{ if(canUse('hurl')){ mode='hurlSelect'; setHint('力拔山兮：先点己方一子，再点3×3目标区域中心'); } };
-btnRewind.onclick = ()=>{ if(canUse('rewind')){ txRewind(); } };
+// 允许在非己方回合进行预览：始终切换模式，若不可用则仅提示“预览中”
+btnSand.onclick = ()=>{
+  mode='sand';
+  setHint(canUse('sand') ? '飞沙走石：点靠近你最近两手之一的2×2区域' : '飞沙走石（预览）：非己方回合或冷却中，无法释放');
+  drawBoard();
+};
+btnFreeze.onclick = ()=>{
+  mode='freeze';
+  setHint(canUse('freeze') ? '静如止水：点一个中心，冻结3×3三回合' : '静如止水（预览）：非己方回合或冷却中，无法释放');
+  drawBoard();
+};
+btnHurl.onclick = ()=>{
+  mode='hurlSelect';
+  setHint(canUse('hurl') ? '力拔山兮：先点己方一子，再点3×3目标区域中心' : '力拔山兮（预览）：非己方回合或冷却中，无法释放');
+  drawBoard();
+};
+btnRewind.onclick = ()=>{
+  mode='rewindPreview';
+  if(canUse('rewind')){
+    setHint('回溯时光：再次点击“回溯时光”以确认释放');
+    // 二次点击确认释放
+    const once = ()=>{
+      if(mode==='rewindPreview' && canUse('rewind')){
+        txRewind();
+        setHint('已回溯：该格出现 3 回合黑洞');
+      }
+      btnRewind.removeEventListener('click', once);
+      mode='place';
+      drawBoard();
+    };
+    btnRewind.addEventListener('click', once);
+  }else{
+    setHint('回溯时光（预览）：高亮对手上一手；非己方回合或冷却中，无法释放');
+  }
+  drawBoard();
+};
 
 function canUse(kind){
   if (!state) return false;
@@ -656,4 +767,5 @@ chatInput.addEventListener('keydown', e=>{
 drawBoard();
 setHint('请输入房间号并加入');
 </script>
-
+</body>
+</html>
