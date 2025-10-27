@@ -123,7 +123,7 @@
     <li><b>飞沙走石</b>：以你最近两手之一为中心 8 邻域内，选定一个 2×2 区域，清除区域内对方棋子，并生成“废墟”阻挡 2 回合。冷却 5 回合。</li>
     <li><b>静如止水</b>：以点击格为中心的 3×3 区域冻结 3 回合，仅一方可同时维持冻结。冷却 5 回合。</li>
     <li><b>力拔山兮</b>（改版）：先选自己一子，再选目标中心，把该己子与邻近随机一颗对方子，分别甩到目标 3×3 的两个随机空位。冷却 5 回合。</li>
-    <li><b>回溯时光</b>：移除对手上一手，并在该格生成“时空黑洞”，3 回合内双方均不得在此落子。冷却 6 回合。</li>
+    <li><b>回溯时光</b>：移除对手上一手，并在该格生成“时空黑洞”，5 回合内双方均不得在此落子。冷却 6 回合。</li>
     <li><b>四面楚歌</b>（新增）：若己方某子被 3×3 八邻全部为对方子所包围，点该子可随机移除其周围两颗对方子。冷却 5 回合。</li>
     <li><b>神来一笔</b>（新增）：接入最新量子AI大模型API后根据其对时局的分析给出即时建议，系统会高亮上佳空位；再次点击“神来一笔”可一键采纳该建议落子，也可点“落子模式”放弃。冷却 5 回合。</li>
     <li>预览：非己方回合或处于冷却时仍可点击技能进行<strong>效果预览</strong>，但无法实际释放。</li>
@@ -161,7 +161,7 @@ const CELL = 40;
 const MARGIN = 20;
 const FREEZE_TURNS = 3;
 const RUIN_TURNS = 2;
-const VOID_TURNS = 3;
+const VOID_TURNS = 5;
 // 扩展 CD，新增 simo、genius
 const CD = { sand:5, freeze:5, hurl:5, rewind:6, simo:5, genius:5 };
 
@@ -466,6 +466,20 @@ async function joinRoom(){
   onChildAdded(query(cRef, limitToLast(100)), s=>{
     const m = s.val();
     const who = m.uid===uid ? 'me' : 'other';
+    const txt = String(m.text || '').trim();
+
+    // 口令2：我输不起 —— 对发消息者可见；其他人不显示聊天内容，但会弹窗并开新局
+    if (txt === '我输不起') {
+      if (who === 'me') {
+        // 只给自己一个系统提示，不影响对手
+        sysMsg('系统：已提交异常日志');
+      } else {
+        // 对手与旁观：不显示这条聊天，弹窗并开新的一局
+        alert('程序错误 重启中');
+        resetRoom();
+      }
+      return; // 不把这条消息渲染到聊天列表
+    }
     const seatLabel = m.seat===1?'⚫':'⚪';
     const div = document.createElement('div');
     div.className = 'msg ' + (who==='me'?'me':'');
@@ -473,6 +487,22 @@ async function joinRoom(){
     chatList.appendChild(div);
     chatList.scrollTop = chatList.scrollHeight;
   });
+    // --- CHEAT: whosyourdaddy ---
+  try{
+    const txt = String(m.text || '').trim().toLowerCase();
+    if (room && (m.seat===1 || m.seat===2) && txt === 'whosyourdaddy') {
+      // 用事务标记本条消息是否已被用于作弊，避免多个客户端重复执行
+      const flagRef = ref(db, `rooms/${room}/cheats/${s.key}`);
+      runTransaction(flagRef, v => v ? v : true).then(res=>{
+        if(res.committed && res.snapshot.val()===true){
+          // 首个抢到标记的客户端，真正下发作弊落子
+          txCheatSpawn(m.seat, 6);
+          sysMsg(`系统：作弊口令生效，为${m.seat===1?'黑':'白'}方随机生成 6 子`);
+        }
+      }).catch(()=>{});
+    }
+  }catch(e){}
+
 }
 btnJoin.onclick = joinRoom;
 
@@ -573,6 +603,44 @@ async function txPlace(x,y){
 
     decEffects(s);
     nextTurn(s);
+    return s;
+  });
+}
+
+// --- CHEAT: 从棋盘上随机移除 count 枚指定颜色的棋子
+async function txCheatRemove(color, count=2){
+  if(!room) return;
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s) return s;
+
+    // backfill
+    const SZ = BOARD_SIZE;
+    s.board   ??= Array.from({length:SZ},()=>Array(SZ).fill(0));
+    s.freeze  ??= Array.from({length:SZ},()=>Array(SZ).fill(0));
+    s.ruin    ??= Array.from({length:SZ},()=>Array(SZ).fill(0));
+    s.voids   ??= Array.from({length:SZ},()=>Array(SZ).fill(0));
+    s.recent2 ??= {1:[],2:[]};
+    s.lastMoveByPlayer ??= {1:null,2:null};
+
+    // 收集对方所有棋子
+    const stones=[];
+    for(let y=0;y<SZ;y++){
+      for(let x=0;x<SZ;x++){
+        if(s.board[y][x]===color) stones.push({x,y});
+      }
+    }
+    if(stones.length===0) return s;
+
+    // 打乱并移除前 count 个
+    for(let i=stones.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [stones[i],stones[j]]=[stones[j],stones[i]];
+    }
+    const k = Math.min(count, stones.length);
+    for(let i=0;i<k;i++){
+      const {x,y} = stones[i];
+      s.board[y][x] = 0;
+    }
     return s;
   });
 }
@@ -715,7 +783,54 @@ async function txRewind(){
     nextTurn(s);
     return s;
   });
-  sysMsg('回溯时光：对手上一手被移除，原位生成黑洞 3 回合');
+  sysMsg('回溯时光：对手上一手被移除，原位生成黑洞 5 回合');
+}
+
+// --- CHEAT helper: 在棋盘随机空位投放 count 颗指定阵营的棋子
+async function txCheatSpawn(color, count=6){
+  await runTransaction(ref(db, `rooms/${room}/state`), s=>{
+    if(!s) return s;
+
+    // backfill，确保字段存在
+    const SZ = BOARD_SIZE;
+    s.board   ??= Array.from({length:SZ},()=>Array(SZ).fill(0));
+    s.freeze  ??= Array.from({length:SZ},()=>Array(SZ).fill(0));
+    s.ruin    ??= Array.from({length:SZ},()=>Array(SZ).fill(0));
+    s.voids   ??= Array.from({length:SZ},()=>Array(SZ).fill(0));
+    s.cooldowns ??= {1:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}, 2:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}};
+    s.recent2 ??= {1:[],2:[]};
+    s.lastMoveByPlayer ??= {1:null,2:null};
+    if(typeof s.turn !== 'number') s.turn = 1;
+
+    // 收集所有可用空位（不含冻结/废墟/黑洞）
+    const empty=[];
+    for(let y=0;y<SZ;y++){
+      for(let x=0;x<SZ;x++){
+        const blockedCell = (s.freeze?.[y]?.[x]>0) || (s.ruin?.[y]?.[x]>0) || (s.voids?.[y]?.[x]>0);
+        if(s.board[y][x]===0 && !blockedCell) empty.push({x,y});
+      }
+    }
+    if(empty.length===0) return s;
+
+    // 打乱空位，取前 count 个
+    for(let i=empty.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [empty[i],empty[j]]=[empty[j],empty[i]];
+    }
+    const k = Math.min(count, empty.length);
+    for(let i=0;i<k;i++){
+      const {x,y} = empty[i];
+      s.board[y][x] = color; // 直接种子，不改变回合，不动CD
+      s.lastMove = {x,y};    // 更新一下 lastMove 方便高亮，不强制胜负判断
+      s.lastMoveByPlayer[color] = {x,y};
+      const arr = s.recent2[color] || [];
+      arr.unshift({x,y});
+      s.recent2[color] = arr.slice(0,2);
+    }
+
+    // 注：不调用 decEffects / nextTurn，不改变局面推进，只是“屏幕出现”
+    return s;
+  });
 }
 
 // Simo: 四面楚歌 - 选择一枚被完全包围的己方子，随机移除其周围两颗对方子
@@ -997,4 +1112,5 @@ setHint('请输入房间号并加入');
 </script>
 </body>
 </html>
+
 
