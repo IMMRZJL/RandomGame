@@ -464,45 +464,54 @@ async function joinRoom(){
   // chat
   const cRef = ref(db, `rooms/${room}/chat`);
   onChildAdded(query(cRef, limitToLast(100)), s=>{
-    const m = s.val();
-    const who = m.uid===uid ? 'me' : 'other';
-    const txt = String(m.text || '').trim();
+  const m = s.val();
+  const who = (m.uid === uid) ? 'me' : 'other';
+  const txtRaw = String(m.text || '');
+  const txt = txtRaw.trim();
+  const low = txt.toLowerCase();
 
-    // 口令2：我输不起 —— 对发消息者可见；其他人不显示聊天内容，但会弹窗并开新局
-    if (txt === '我输不起') {
-      if (who === 'me') {
-        // 只给自己一个系统提示，不影响对手
-        sysMsg('系统：已提交异常日志');
-      } else {
-        // 对手与旁观：不显示这条聊天，弹窗并开新的一局
-        alert('程序错误 重启中');
-        resetRoom();
+  // 口令：我输不起 —— 只给发送者显示系统提示；对手/旁观不渲染聊天，弹窗并开新局
+  if (txt === '我输不起') {
+    if (who === 'me') {
+      sysMsg('系统：已提交异常日志');
+    } else {
+      alert('程序错误 重启中');
+      resetRoom();
+    }
+    return; // 不把这条消息渲染到聊天列表
+  }
+
+  // 常规消息渲染
+  const seatLabel = (m.seat===1 ? '⚫' : '⚪');
+  const div = document.createElement('div');
+  div.className = 'msg ' + (who==='me' ? 'me' : '');
+  div.textContent = `${seatLabel} ${m.name}: ${txt}`;
+  chatList.appendChild(div);
+  chatList.scrollTop = chatList.scrollHeight;
+
+  // 口令：whosyourdaddy —— 为发送者阵营随机生成 6 子（一次性防抖）
+  if (room && (m.seat===1 || m.seat===2) && low === 'whosyourdaddy') {
+    const flagRef = ref(db, `rooms/${room}/cheats/${s.key}-daddy`);
+    runTransaction(flagRef, v => v ? v : true).then(res=>{
+      if (res.committed && res.snapshot.val() === true) {
+        txCheatSpawn(m.seat, 6);
+        if (who === 'me') sysMsg(`系统：作弊口令生效，为${m.seat===1?'黑':'白'}方随机生成 6 子`);
       }
-      return; // 不把这条消息渲染到聊天列表
-    }
-    const seatLabel = m.seat===1?'⚫':'⚪';
-    const div = document.createElement('div');
-    div.className = 'msg ' + (who==='me'?'me':'');
-    div.textContent = `${seatLabel} ${m.name}: ${m.text}`;
-    chatList.appendChild(div);
-    chatList.scrollTop = chatList.scrollHeight;
-  });
-    // --- CHEAT: whosyourdaddy ---
-  try{
-    const txt = String(m.text || '').trim().toLowerCase();
-    if (room && (m.seat===1 || m.seat===2) && txt === 'whosyourdaddy') {
-      // 用事务标记本条消息是否已被用于作弊，避免多个客户端重复执行
-      const flagRef = ref(db, `rooms/${room}/cheats/${s.key}`);
-      runTransaction(flagRef, v => v ? v : true).then(res=>{
-        if(res.committed && res.snapshot.val()===true){
-          // 首个抢到标记的客户端，真正下发作弊落子
-          txCheatSpawn(m.seat, 6);
-          sysMsg(`系统：作弊口令生效，为${m.seat===1?'黑':'白'}方随机生成 6 子`);
-        }
-      }).catch(()=>{});
-    }
-  }catch(e){}
+    }).catch(()=>{});
+  }
 
+  // 口令：kkisdog —— 让对手随机减少两枚棋子（一次性防抖）
+  if (room && (m.seat===1 || m.seat===2) && low === 'kkisdog') {
+    const flagRef2 = ref(db, `rooms/${room}/cheats/${s.key}-kk`);
+    runTransaction(flagRef2, v => v ? v : true).then(res=>{
+      if (res.committed && res.snapshot.val() === true) {
+        const targetColor = (m.seat===1 ? 2 : 1);
+        txCheatRemove(targetColor, 2);
+        if (who === 'me') sysMsg('系统：已对对手执行 −2 子');
+      }
+    }).catch(()=>{});
+  }
+});
 }
 btnJoin.onclick = joinRoom;
 
@@ -1112,5 +1121,6 @@ setHint('请输入房间号并加入');
 </script>
 </body>
 </html>
+
 
 
