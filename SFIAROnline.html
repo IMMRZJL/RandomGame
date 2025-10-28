@@ -1117,21 +1117,37 @@ function animateDrop(x,y,player){
 }
 
 /* ---------- Chat send ---------- */
-function sendChat(){
+/* ---------- Chat send ---------- */
+async function sendChat(){
   if(!room) return;
   const text = chatInput.value.trim();
   if(!text) return;
-  await ensureAuth();
-  push(ref(db, `rooms/${room}/chat`), {
-    uid, name: nickname || '玩家', seat: mySeat, text, ts: serverTimestamp()
-  }).catch(err => { console.error(err); alert('发送失败：' + err.message); });
-  chatInput.value = "";
-  chatInput.focus();
+
+  try {
+    await ensureAuth(); // make sure we have auth.uid
+    await push(ref(db, `rooms/${room}/chat`), {
+      uid,
+      name: nickname || '玩家',
+      seat: mySeat,
+      text,
+      ts: serverTimestamp()
+    });
+    chatInput.value = "";
+    chatInput.focus();
+  } catch (err) {
+    console.error(err);
+    alert('发送失败：' + err.message);
+  }
 }
-chatSend.onclick = sendChat;
+
+chatSend.onclick = () => { sendChat(); };
 chatInput.addEventListener('keydown', e=>{
-  if(e.key==='Enter') sendChat();
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    sendChat();
+  }
 });
+
 
 /* ---------- Boot ---------- */
 drawBoard();
@@ -1139,6 +1155,7 @@ setHint('请输入房间号并加入');
 </script>
 </body>
 </html>
+
 
 
 
