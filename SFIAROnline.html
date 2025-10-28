@@ -258,7 +258,8 @@ function emptyState(){
     voids:Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0)),
     turn:1,
     cooldowns:{1:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0},2:{sand:0,freeze:0,hurl:0,rewind:0,simo:0,genius:0}},
-    lastMove:null,
+    lastMove: false,              // ← 原来是 null，改成 false
+    lastMoveByPlayer: {1:false,2:false}, // 可选，避免日后再写 null
     lastMoveByPlayer:{1:null,2:null},
     recent2:{1:[],2:[]},
     freezeOwner:0,
@@ -467,7 +468,7 @@ async function txRewind(){
     s.lastMoveByPlayer??={1:null,2:null}; s.voids??=Array.from({length:BOARD_SIZE},()=>Array(BOARD_SIZE).fill(0));
     if(mySeat!==s.turn) return s; if(s.cooldowns[mySeat].rewind>0) return s;
     const opp=3-mySeat, lm=s.lastMoveByPlayer[opp]; if(!lm) return s; if(s.board[lm.y][lm.x]!==opp) return s;
-    s.board[lm.y][lm.x]=0; s.lastMove=null; s.lastMoveByPlayer[opp]=null; s.voids[lm.y][lm.x]=Math.max(s.voids[lm.y][lm.x], VOID_TURNS);
+    s.board[lm.y][lm.x]=0; s.lastMove=false; s.lastMoveByPlayer[opp]=false; s.voids[lm.y][lm.x]=Math.max(s.voids[lm.y][lm.x], VOID_TURNS);
     s.cooldowns[mySeat].rewind=CD.rewind; decEffects(s); nextTurn(s); return s;
   });
   sysMsg('回溯时光：对手上一手被移除，原位生成黑洞 5 回合');
@@ -608,3 +609,4 @@ setHint('请输入房间号并加入');
 </script>
 </body>
 </html>
+
