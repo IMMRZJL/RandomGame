@@ -137,7 +137,7 @@ import {
   getDatabase, ref, onValue, set, runTransaction, onDisconnect,
   serverTimestamp, push, onChildAdded, query, limitToLast
 } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-database.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
 
 /* Replace with your own config */
 const firebaseConfig = {
@@ -154,6 +154,20 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 signInAnonymously(auth).catch(console.error);
+  // 等待匿名登录，拿到 auth.uid 后再继续
+async function ensureAuth() {
+  if (auth.currentUser && auth.currentUser.uid) {
+    uid = auth.currentUser.uid;
+    return uid;
+  }
+  await new Promise(resolve => {
+    const off = onAuthStateChanged(auth, u => {
+      if (u && u.uid) { uid = u.uid; off(); resolve(); }
+    });
+  });
+  return uid;
+}
+
 
 /* ---------- Game constants ---------- */
 const BOARD_SIZE = 15;
@@ -166,7 +180,7 @@ const VOID_TURNS = 5;
 const CD = { sand:5, freeze:5, hurl:5, rewind:6, simo:5, genius:5 };
 
 /* ---------- Local state ---------- */
-let room = null, uid = crypto.randomUUID();
+let room = null, uid = null;
 let mySeat = 0; // 1 black, 2 white, 0 spectator
 let nickname = "";
 let state = null; // authoritative
@@ -422,8 +436,11 @@ async function joinRoom(){
   if(!rid){ alert('请输入房间号'); return; }
   room = rid; nickname = name; mySeat = seat;
 
+  await ensureAuth(); // ← 关键：确保拿到 auth.uid
   const playersRef = ref(db, `rooms/${room}/players/${uid}`);
-  await set(playersRef, { name:nickname, seat:mySeat, ts: serverTimestamp() });
+  await set(playersRef, { name:nickname, seat:mySeat, ts: serverTimestamp() })
+  .catch(err => { console.error(err); alert('进入房间失败：' + err.message); throw err; });
+
   onDisconnect(playersRef).remove();
 
   roomInfo.textContent = `房间 ${room}（你是${seat===1?'黑':seat===2?'白':'旁观'}）`;
@@ -1104,9 +1121,10 @@ function sendChat(){
   if(!room) return;
   const text = chatInput.value.trim();
   if(!text) return;
+  await ensureAuth();
   push(ref(db, `rooms/${room}/chat`), {
     uid, name: nickname || '玩家', seat: mySeat, text, ts: serverTimestamp()
-  });
+  }).catch(err => { console.error(err); alert('发送失败：' + err.message); });
   chatInput.value = "";
   chatInput.focus();
 }
@@ -1121,6 +1139,7 @@ setHint('请输入房间号并加入');
 </script>
 </body>
 </html>
+
 
 
 
