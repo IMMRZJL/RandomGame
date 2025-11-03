@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>三园停车券领取</title>
+  <meta name="theme-color" content="#0f1115" />
+  <!-- 禁止缓存，保证“刷新”时真请求 -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <style>
+    :root {
+      --bg:#0f1115; --fg:#f6f7f9; --muted:#a6adbb; --card:#141821; --accent:#2e7cf6;
+      --radius:18px; --pad:20px; --max:560px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans SC", Arial, sans-serif;
+      -webkit-font-smoothing:antialiased; line-height:1.5;
+      display:flex; align-items:center; justify-content:center;
+      padding:24px;
+    }
+    .wrap{width:100%; max-width:var(--max); text-align:center}
+    h1{
+      font-size: clamp(22px, 6vw, 34px);
+      margin: 0 0 18px; letter-spacing: .06em; font-weight:700;
+    }
+    .card{
+      background:var(--card); border-radius:var(--radius);
+      padding: clamp(16px, 5vw, 28px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+    }
+    #qrcode{
+      width:min(76vw, 360px); height:min(76vw, 360px);
+      margin: 6px auto 10px; display:grid; place-items:center;
+      background:#fff; border-radius:12px; overflow:hidden;
+      box-shadow: 0 6px 18px rgba(0,0,0,.25);
+    }
+    .hint{
+      color:var(--muted); font-size:14px; margin-top:6px
+    }
+    .count{
+      margin-top:14px; font-size:15px;
+    }
+    .actions{
+      margin-top:14px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;
+    }
+    button, a.btn {
+      appearance:none; border:0; border-radius:12px; padding:10px 14px;
+      background:var(--accent); color:#fff; font-weight:600; font-size:14px;
+      cursor:pointer; text-decoration:none;
+      box-shadow: 0 6px 16px rgba(46,124,246,.35);
+    }
+    button.ghost{ background:transparent; color:var(--fg); border:1px solid #2a2f3a; box-shadow:none }
+    .link{
+      display:inline-block; margin-top:6px; font-size:13px; color:var(--muted);
+      text-decoration:underline; text-underline-offset:3px;
+    }
+    @media (prefers-color-scheme: light){
+      :root{ --bg:#f7f8fb; --fg:#0c0d10; --muted:#616978; --card:#ffffff; --accent:#255de6; }
+      #qrcode{ box-shadow: 0 6px 18px rgba(16,24,40,.08) }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>三园停车券领取</h1>
+    <div class="card">
+      <div id="qrcode" role="img" aria-label="停车券二维码"></div>
+      <div class="hint">如扫码不便，可点击下方按钮直接打开链接</div>
+
+      <div class="actions">
+        <a class="btn" id="open-link" href="#" rel="noopener">打开链接</a>
+        <button class="ghost" id="refresh-now" type="button">立即刷新</button>
+      </div>
+
+      <div class="count" id="countdown">将在 60 秒后自动刷新</div>
+      <a class="link" id="copy-link" href="#" role="button">复制链接</a>
+
+      <noscript>
+        <p class="hint">设备未启用 JavaScript。可直接长按下方二维码或点击按钮打开。</p>
+        <div style="margin-top:8px">
+          <img alt="二维码" width="260" height="260"
+            src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=https%3A%2F%2Fs.bolink.club%2FpayApi%2Ft%3Ftype%3Dticket%26p%3Dzd13B68F1E10C03a961%26tid%3D1%26codeId%3Dnull%26scanType%3D1" />
+        </div>
+      </noscript>
+    </div>
+  </div>
+
+  <!-- 方式一：用 CDN（简单，但外网依赖）
+       <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
+       方式二：把 qrcode.min.js 放到仓库，改为 ./qrcode.min.js 更稳妥。 -->
+  <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
+
+  <script>
+    // 目标链接（二维码内容）
+    const TARGET = "https://s.bolink.club/payApi/t?type=ticket&p=zd13B68F1E10C03a961&tid=1&codeId=null&scanType=1";
+
+    // 绘制二维码（根据屏幕算尺寸）
+    function drawQR(){
+      const box = document.getElementById('qrcode');
+      box.innerHTML = "";
+      const size = Math.min(Math.floor(window.innerWidth * 0.76), 360);
+      new QRCode(box, {
+        text: TARGET,
+        width: size,
+        height: size,
+        correctLevel: QRCode.CorrectLevel.M,
+        useSVG: true
+      });
+    }
+    drawQR();
+    window.addEventListener('resize', () => { clearTimeout(window.__qrT); window.__qrT=setTimeout(drawQR, 120); });
+
+    // 倒计时与自动刷新
+    let secs = 60;
+    const cd = document.getElementById('countdown');
+    const tick = () => {
+      secs -= 1;
+      cd.textContent = `将在 ${secs} 秒后自动刷新`;
+      if (secs <= 0) {
+        // 整页重载，等价“重新连接”
+        location.reload();
+      }
+    };
+    const timer = setInterval(tick, 1000);
+
+    // 操作
+    document.getElementById('open-link').href = TARGET;
+    document.getElementById('refresh-now').addEventListener('click', () => location.reload());
+    document.getElementById('copy-link').addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        await navigator.clipboard.writeText(TARGET);
+        cd.textContent = "链接已复制，随时可在浏览器打开";
+      } catch {
+        cd.textContent = "复制失败，请手动长按上方按钮复制";
+      }
+    });
+  </script>
+</body>
+</html>
