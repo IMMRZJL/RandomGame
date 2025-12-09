@@ -5,7 +5,7 @@
   <title>新西兰旅行地图</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Leaflet 样式 -->
+  <!-- Leaflet 样式：使用 jsDelivr CDN -->
   <link
     rel="stylesheet"
     href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
@@ -19,12 +19,13 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* 关键: 给 map 明确高度和宽度 */
+    /* 地图容器 */
     #map {
       width: 100%;
       height: 100%;
     }
 
+    /* 顶部右侧定位按钮 */
     #locateBtn {
       position: absolute;
       top: 10px;
@@ -43,6 +44,33 @@
       background: #f8d374;
     }
 
+    /* 左上角筛选面板 */
+    #filterPanel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 8px;
+      padding: 6px 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      font-size: 13px;
+    }
+    #filterPanel h4 {
+      margin: 0 0 4px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    #filterPanel label {
+      display: block;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #filterPanel input {
+      margin-right: 4px;
+    }
+
+    /* 自定义钻石标记图标 */
     .custom-marker {
       width: 18px;
       height: 18px;
@@ -58,6 +86,7 @@
       box-shadow: 0 0 6px rgba(0,0,0,0.5);
     }
 
+    /* 地图上的文字标签 */
     .place-label {
       background: rgba(0,0,0,0.55);
       color: #fff;
@@ -77,27 +106,100 @@
       font-size: 13px;
       line-height: 1.5;
     }
+
+    /* 全屏加载动画 */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: #101010;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      opacity: 1;
+      transition: opacity 0.4s ease;
+    }
+    #loading h2 {
+      margin: 12px 0 4px;
+      font-size: 18px;
+    }
+    #loading p {
+      margin: 0;
+      font-size: 13px;
+      opacity: 0.8;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top-color: #ffffff;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
+  <!-- 加载动画 -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <h2>地图加载中…</h2>
+    <p>如果网络较慢，请稍等几秒</p>
+  </div>
+
+  <!-- 地图 -->
   <div id="map"></div>
+
+  <!-- 筛选面板 -->
+  <div id="filterPanel">
+    <h4>筛选景点</h4>
+    <label><input type="checkbox" id="filterHot" checked> 热门景点</label>
+    <label><input type="checkbox" id="filterHidden" checked> 小众景点</label>
+  </div>
+
+  <!-- 定位按钮 -->
   <button id="locateBtn">定位到我</button>
 
-  <!-- Leaflet 脚本 -->
-  <script
-    src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
-  ></script>
+  <!-- Leaflet 脚本：使用 jsDelivr CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    // 等 DOM 都准备好再初始化
     document.addEventListener("DOMContentLoaded", function () {
       var map = L.map("map").setView([-41.5, 172.5], 5.5);
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      // 瓦片地图
+      var tileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 18,
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
 
+      // 加载动画控制
+      var loadingTimeout = setTimeout(hideLoading, 8000); // 最长 8 秒强制隐藏
+
+      tileLayer.on("load", function () {
+        hideLoading();
+        if (loadingTimeout) {
+          clearTimeout(loadingTimeout);
+          loadingTimeout = null;
+        }
+      });
+
+      function hideLoading() {
+        var loading = document.getElementById("loading");
+        if (!loading || loading.dataset.done === "1") return;
+
+        loading.dataset.done = "1";
+        loading.style.opacity = "0";
+        setTimeout(function () {
+          loading.style.display = "none";
+        }, 400);
+      }
+
+      // 钻石图标
       var diamondIcon = L.divIcon({
         className: "custom-marker",
         html: '<div class="marker-diamond"></div>',
@@ -106,11 +208,14 @@
         popupAnchor: [0, -10]
       });
 
+      // 景点数据：增加南岛景点，并标记热门 / 小众
       var places = [
+        // 北岛热门
         {
           name: "奥克兰 Auckland",
           lat: -36.8485,
           lng: 174.7633,
+          type: "hot",
           description:
             "奥克兰是大部分人进入新西兰的第一站，海湾和火山并存。白天可以登天空塔俯瞰全城，或者乘渡轮去德文港散步。市中心购物餐厅选择多，适合作为行程起点补给物资。建议安排一到两天，把更多时间留给南岛。"
         },
@@ -118,6 +223,7 @@
           name: "霍比屯 Hobbiton",
           lat: -37.8720,
           lng: 175.6820,
+          type: "hot",
           description:
             "霍比屯电影外景地位于玛塔玛塔附近，是魔戒和霍比特人粉丝的必去景点。需要提前在官网预定团，多数从罗托鲁瓦或奥克兰参加一日游。导游会带你参观袋底洞等场景，最后在绿龙酒馆喝一杯特色饮品。"
         },
@@ -125,6 +231,7 @@
           name: "罗托鲁瓦 Rotorua",
           lat: -38.1368,
           lng: 176.2497,
+          type: "hot",
           description:
             "罗托鲁瓦以地热和毛利文化闻名，空气里有硫磺味。可以在怀欧塔普、蒂普亚等公园观看喷泉和彩色地热池，晚上参加毛利文化晚宴，体验歌舞和烤全羊。部分温泉可以一边泡一边看湖景，适合缓解旅途疲劳。"
         },
@@ -132,13 +239,25 @@
           name: "惠灵顿 Wellington",
           lat: -41.2865,
           lng: 174.7762,
+          type: "hot",
           description:
             "惠灵顿是新西兰首都，城市不大但很有气氛。步行就能逛完海滨、国会大厦和缆车。蒂帕帕国家博物馆免费开放，展品丰富，是雨天好去处。电影爱好者可以去维塔工作室参观特效制作。建议至少住一晚。"
+        },
+
+        // 南岛热门
+        {
+          name: "基督城 Christchurch",
+          lat: -43.5321,
+          lng: 172.6362,
+          type: "hot",
+          description:
+            "基督城是南岛最大的城市，也是很多人南岛行的起点。市区可以乘坐老式有轨电车，沿雅芳河散步或划小船。震后重建留下不少艺术装置和临时教堂。适合作为抵达当天的缓冲点，补给、买电话卡和调整时差。"
         },
         {
           name: "特卡波湖 Lake Tekapo",
           lat: -44.0049,
           lng: 170.4830,
+          type: "hot",
           description:
             "特卡波湖以梦幻的蓝色湖水和星空出名。善牧堂教堂在湖边，是日落和夜拍的经典机位。春季周边遍布鲁冰花，颜色特别丰富。这里属于暗夜保护区，天气好可以参加观星团，肉眼就能看到银河。"
         },
@@ -146,6 +265,7 @@
           name: "库克山 Aoraki / Mt Cook",
           lat: -43.7350,
           lng: 170.0960,
+          type: "hot",
           description:
             "库克山国家公园拥有新西兰最高峰和多条徒步路线。胡克谷步道最受欢迎，往返约三小时，难度不大但风景非常好，可以看到冰川和雪山。夏季注意防晒补水，冬季留意结冰路段，住宿需提前预订。"
         },
@@ -153,6 +273,7 @@
           name: "皇后镇 Queenstown",
           lat: -45.0312,
           lng: 168.6626,
+          type: "hot",
           description:
             "皇后镇是户外运动之都，蹦极、跳伞、滑雪等项目丰富。镇中心沿湖一圈就能走完，餐厅酒吧集中，很适合住两到三晚。白天乘缆车上山俯瞰瓦卡蒂普湖，傍晚在湖边看日落。还可以自驾去箭镇或格林诺奇半日游。"
         },
@@ -160,6 +281,7 @@
           name: "瓦纳卡 Wanaka",
           lat: -44.6970,
           lng: 169.1339,
+          type: "hot",
           description:
             "瓦纳卡相比皇后镇更安静，适合慢节奏度假。湖边那棵“孤树”是摄影圣地，日出和黄昏光线最好。喜欢徒步可以挑战罗伊峰，登顶视野开阔但爬升较大。也可以选择游船或骑自行车环湖，安排一到两天比较合适。"
         },
@@ -167,6 +289,7 @@
           name: "米尔福德峡湾 Milford Sound",
           lat: -44.6167,
           lng: 167.8667,
+          type: "hot",
           description:
             "米尔福德峡湾是南岛最经典景点之一，多数游客从皇后镇或蒂阿瑙参加一日游。乘游船可以近距离观赏瀑布和海豚，阴天反而更有氛围。自驾需走山路，注意油量和时间，冬季可能结冰封路，晕车的人提前准备药。"
         },
@@ -174,13 +297,69 @@
           name: "弗朗茨约瑟夫冰川 Franz Josef Glacier",
           lat: -43.3890,
           lng: 170.1810,
+          type: "hot",
           description:
             "弗朗茨约瑟夫冰川位于西海岸，在温带雨林中接近冰川十分特别。步行可到观景平台，想踏上冰面需要参加直升机徒步团。天气多变，活动有被取消的可能，行程上留一点机动天较稳妥。小镇虽小但有超市和餐馆补给。"
+        },
+
+        // 南岛小众 / 相对冷门
+        {
+          name: "阿贝尔塔斯曼 Abel Tasman",
+          lat: -41.0333,
+          lng: 173.0167,
+          type: "hidden",
+          description:
+            "阿贝尔塔斯曼国家公园位于南岛最北端，以金色沙滩和碧绿海水闻名。常见玩法是乘船到某个海滩再徒步或划皮划艇返回，路线可长可短。这里比皇后镇人少，适合喜欢海边步道和露营的游客，夏季紫外线很强要注意防晒。"
+        },
+        {
+          name: "凯库拉 Kaikoura",
+          lat: -42.3960,
+          lng: 173.6810,
+          type: "hidden",
+          description:
+            "凯库拉是观鲸和看海豚的热门小镇，但很多第一次南岛自驾的人会错过。海岸线风景非常漂亮，可以在峭壁步道上远眺海豹群。冬春两季观鲸成功率较高，提前预订船票更保险。自驾时注意国道沿海路段偶有落石。"
+        },
+        {
+          name: "福克斯冰川 Fox Glacier",
+          lat: -43.4647,
+          lng: 170.0181,
+          type: "hidden",
+          description:
+            "福克斯冰川在弗朗茨约瑟夫冰川以南，游客相对更少一些。天气允许时可以参加直升机冰川徒步团，和上一个冰川的体验类似但景观略有不同。附近的马瑟森湖在无风时能拍到倒映南阿尔卑斯山的经典照片，建议清晨前往。"
+        },
+        {
+          name: "蒂阿瑙 Te Anau",
+          lat: -45.4145,
+          lng: 167.7180,
+          type: "hidden",
+          description:
+            "蒂阿瑙是前往米尔福德峡湾的门户小镇，也是开往峡湾公路的起点。镇子本身很安静，湖边散步就很舒服。天气好的傍晚可以在湖边看日落，夜里还有萤火虫洞可以参观。自驾去峡湾时建议加满油并准备一点零食。"
+        },
+        {
+          name: "但尼丁 Dunedin",
+          lat: -45.8788,
+          lng: 170.5028,
+          type: "hidden",
+          description:
+            "但尼丁有明显的苏格兰风情，市区有保存良好的火车站和老建筑。附近的奥塔哥半岛是看野生企鹅和信天翁的好地方，黄眼企鹅数量稀少，务必遵守观赏距离和保护规定。这里不算典型旅游路线，适合有多几天时间的旅行者。"
+        },
+        {
+          name: "斯图尔特岛 Stewart Island",
+          lat: -46.8990,
+          lng: 168.1000,
+          type: "hidden",
+          description:
+            "斯图尔特岛位于南岛以南，需要从布拉夫乘船或小飞机前往。岛上游人不多，步道密布，是远离人群体验原始自然的好去处。夜间有机会在导览带领下看到野生几维鸟。因为天气多变，建议行程上预留机动时间。"
         }
       ];
 
+      // 创建标记并存起来，方便筛选
+      var placeMarkers = [];
+
       places.forEach(function (p) {
-        var marker = L.marker([p.lat, p.lng], { icon: diamondIcon }).addTo(map);
+        var marker = L.marker([p.lat, p.lng], { icon: diamondIcon });
+
+        marker._placeType = p.type; // 标记类别方便筛选
 
         marker.bindTooltip(p.name, {
           permanent: true,
@@ -193,8 +372,36 @@
           '<h3 class="popup-title">' + p.name + "</h3>" +
           '<p class="popup-text">' + p.description + "</p>";
         marker.bindPopup(popupHtml);
+
+        marker.addTo(map);
+        placeMarkers.push(marker);
       });
 
+      // 筛选功能
+      function updateFilters() {
+        var showHot = document.getElementById("filterHot").checked;
+        var showHidden = document.getElementById("filterHidden").checked;
+
+        placeMarkers.forEach(function (marker) {
+          var t = marker._placeType;
+          var shouldShow =
+            (t === "hot" && showHot) ||
+            (t === "hidden" && showHidden);
+
+          var onMap = map.hasLayer(marker);
+
+          if (shouldShow && !onMap) {
+            marker.addTo(map);
+          } else if (!shouldShow && onMap) {
+            map.removeLayer(marker);
+          }
+        });
+      }
+
+      document.getElementById("filterHot").addEventListener("change", updateFilters);
+      document.getElementById("filterHidden").addEventListener("change", updateFilters);
+
+      // 定位功能
       var userLayer;
 
       document.getElementById("locateBtn").addEventListener("click", function () {
@@ -229,7 +436,7 @@
             map.setView([lat, lng], 12);
           },
           function (err) {
-            alert("定位失败: " + err.message);
+            alert("定位失败：" + err.message);
           }
         );
       });
