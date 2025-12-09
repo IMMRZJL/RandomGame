@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>新西兰旅行地图</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Leaflet 样式 -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha512-p6U9H6T6g52MqnhkkpFm4bA1sHqjYv1vUCu5pW0HQXhYX5DdeKkS7Cw7UM48VxgC2xGctLr3qWfWc8gEIr3WQw=="
+    crossorigin=""
+  />
+
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+    }
+
+    /* 定位按钮 */
+    #locateBtn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      padding: 8px 14px;
+      border: none;
+      border-radius: 18px;
+      background: #f5e0a5;
+      color: #333;
+      font-size: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      cursor: pointer;
+    }
+    #locateBtn:hover {
+      background: #f8d374;
+    }
+
+    /* 自定义“钻石”标记图标 */
+    .custom-marker {
+      width: 18px;
+      height: 18px;
+    }
+    .custom-marker .marker-diamond {
+      width: 14px;
+      height: 14px;
+      margin: 1px auto;
+      transform: rotate(45deg);
+      border-radius: 3px;
+      background: rgba(0, 172, 255, 0.9);
+      border: 2px solid #0085c7;
+      box-shadow: 0 0 6px rgba(0,0,0,0.5);
+    }
+
+    /* 地图上的文字标签 */
+    .place-label {
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      border: none;
+      box-shadow: none;
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 10px;
+    }
+
+    /* popup 内标题 */
+    .popup-title {
+      margin: 0 0 6px;
+      font-size: 15px;
+    }
+    .popup-text {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <button id="locateBtn">定位到我</button>
+
+  <!-- Leaflet 脚本 -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha512-vPSY6H0u5q2dTzTbn6G6SWDuzKxpsuQvkjeEmsXQpgBTpTjjlRzzu+QhHpcZOLTlFZC1VjRcbVQSM4NJC2G0Aw=="
+    crossorigin=""
+  ></script>
+
+  <script>
+    // 1. 初始化地图，视角放在新西兰中部
+    var map = L.map("map").setView([-41.5, 172.5], 5.5);
+
+    // 2. 加载底图（OpenStreetMap）
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    // 3. 自定义标记图标（蓝色钻石）
+    var diamondIcon = L.divIcon({
+      className: "custom-marker",
+      html: '<div class="marker-diamond"></div>',
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+      popupAnchor: [0, -10]
+    });
+
+    // 4. 景点数据（名称 + 坐标 + 攻略）
+    var places = [
+      {
+        name: "奥克兰 Auckland",
+        lat: -36.8485,
+        lng: 174.7633,
+        description:
+          "奥克兰是大部分人进入新西兰的第一站，海湾和火山并存。白天可以登天空塔俯瞰全城，或者乘渡轮去德文港散步看老房子。市中心购物餐厅选择多，适合作为行程起点补给物资。建议安排一到两天就足够，把更多时间留给南岛。"
+      },
+      {
+        name: "霍比屯 Hobbiton",
+        lat: -37.8720,
+        lng: 175.6820,
+        description:
+          "霍比屯电影外景地位于玛塔玛塔附近，是魔戒和霍比特人粉丝的必去景点。必须提前在官网预定团，可从罗托鲁瓦或奥克兰出发参加一日游。导游会带你参观袋底洞等标志性场景，最后在绿龙酒馆喝一杯特色饮品，非常适合拍照打卡。"
+      },
+      {
+        name: "罗托鲁瓦 Rotorua",
+        lat: -38.1368,
+        lng: 176.2497,
+        description:
+          "罗托鲁瓦以地热和毛利文化闻名，空气里有明显的硫磺味。可以在怀欧塔普、蒂普亚等公园近距离观看喷泉和彩色地热池。晚上推荐参加毛利文化晚宴，体验传统歌舞和烤全羊。部分温泉可以一边泡一边看湖景，是缓解旅途疲劳的好地方。"
+      },
+      {
+        name: "惠灵顿 Wellington",
+        lat: -41.2865,
+        lng: 174.7762,
+        description:
+          "惠灵顿是首都，小而精致，风很大。市区步行即可到达海滨、国会大厦和缆车。蒂帕帕国家博物馆免费开放，展品丰富，雨天也不无聊。喜欢电影的游客可以去维塔工作室参观特效制作。建议至少停留一晚，感受轻松的首都节奏。"
+      },
+      {
+        name: "特卡波湖 Lake Tekapo",
+        lat: -44.0049,
+        lng: 170.4830,
+        description:
+          "特卡波湖以梦幻的蓝色湖水和星空闻名，是热门拍婚纱照地点。善牧堂教堂在湖边，非常适合日落和夜拍。春季周边遍布鲁冰花，色彩特别丰富。这里属于暗夜保护区，天气好时可以报团参加观星活动，肉眼就能看到银河。"
+      },
+      {
+        name: "库克山 Aoraki / Mt Cook",
+        lat: -43.7350,
+        lng: 170.0960,
+        description:
+          "库克山国家公园拥有新西兰最高峰和多条经典徒步路线。最受欢迎的是胡克谷步道，全程来回约三小时，难度不高却能看到冰川和雪山倒影。夏季注意防晒和补水，冬季需留意结冰路段。住宿选择有限，旺季最好提前预订山庄。"
+      },
+      {
+        name: "皇后镇 Queenstown",
+        lat: -45.0312,
+        lng: 168.6626,
+        description:
+          "皇后镇被称为户外运动之都，蹦极、跳伞、滑雪一应俱全。镇中心沿湖一圈就能走完，餐厅酒吧集中，很适合住上两到三晚。白天可以乘缆车上山俯瞰瓦卡蒂普湖，傍晚在湖边看日落。时间充裕的话建议自驾去箭镇或格林诺奇半日游。"
+      },
+      {
+        name: "瓦纳卡 Wanaka",
+        lat: -44.6970,
+        lng: 169.1339,
+        description:
+          "瓦纳卡相比皇后镇更安静，适合慢节奏度假。湖边那棵“孤树”是摄影圣地，日出和黄昏光线最好。喜欢徒步可以挑战罗伊峰，登顶后视野开阔，但爬升较大需要体力。也可以选择乘游船或骑自行车环湖，安排一到两天时间比较合适。"
+      },
+      {
+        name: "米尔福德峡湾 Milford Sound",
+        lat: -44.6167,
+        lng: 167.8667,
+        description:
+          "米尔福德峡湾是南岛最经典的自然景观之一，多数人从皇后镇或蒂阿瑙参加一日游。乘游船可以近距离观赏瀑布和海豚，天气多变，阴天反而更有气氛。自驾需要走山路，注意油量和时间，冬季可能结冰封路。晕车的人最好提前准备药物。"
+      },
+      {
+        name: "弗朗茨约瑟夫冰川 Franz Josef Glacier",
+        lat: -43.3890,
+        lng: 170.1810,
+        description:
+          "西海岸的弗朗茨约瑟夫冰川让你在温带雨林中接近冰川景观。基础游览可以步行到观景平台，想走到冰面上需要参加直升机徒步团。天气变化大，活动有被取消的可能，行程上留一点机动天比较稳妥。镇子很小，但有超市和餐馆方便补给。"
+      }
+    ];
+
+    // 5. 把景点画到地图上
+    places.forEach(function (p) {
+      var marker = L.marker([p.lat, p.lng], { icon: diamondIcon }).addTo(map);
+
+      // 悬浮的文字标签
+      marker.bindTooltip(p.name, {
+        permanent: true,
+        direction: "top",
+        offset: [0, -10],
+        className: "place-label"
+      });
+
+      // 点击弹出攻略
+      var popupHtml =
+        '<h3 class="popup-title">' + p.name + "</h3>" +
+        '<p class="popup-text">' + p.description + "</p>";
+
+      marker.bindPopup(popupHtml);
+    });
+
+    // 6. 用户定位：浏览器会自动弹出是否允许使用定位
+    var userLayer; // 用来存放用户位置，重复点击按钮时先清除
+
+    document.getElementById("locateBtn").addEventListener("click", function () {
+      if (!navigator.geolocation) {
+        alert("当前浏览器不支持定位功能。");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          var lat = pos.coords.latitude;
+          var lng = pos.coords.longitude;
+          var accuracy = pos.coords.accuracy;
+
+          if (userLayer) {
+            map.removeLayer(userLayer.marker);
+            map.removeLayer(userLayer.circle);
+          }
+
+          var marker = L.marker([lat, lng]).addTo(map);
+          marker.bindPopup("你现在大致在这里").openPopup();
+
+          var circle = L.circle([lat, lng], {
+            radius: accuracy,
+            color: "#3388ff",
+            fillColor: "#3388ff",
+            fillOpacity: 0.15
+          }).addTo(map);
+
+          userLayer = { marker: marker, circle: circle };
+
+          map.setView([lat, lng], 12);
+        },
+        function (err) {
+          alert("定位失败：" + err.message);
+        }
+      );
+    });
+
+    // 提示：要在 GitHub Pages 上使用定位功能，请确保通过 https 访问页面。
+  </script>
+</body>
+</html>
