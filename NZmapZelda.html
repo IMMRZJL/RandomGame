@@ -26,23 +26,19 @@
       z-index: 1;
     }
     
-    /* 配方二：墨绿苔藓风格 (不反色) */
+    /* 配方一：修正后的深色希卡风格 */
     .leaflet-tile-pane {
-      /* 1. sepia(50%): 先把地图弄黄。
-         2. hue-rotate(70deg): 【关键】把黄色旋转到墨绿色/青苔色。
-         3. saturate(150%): 增加色彩饱和度，让绿色更浓郁。
-         4. brightness(80%): 稍微压暗一点，模拟夜晚/深色UI。
-         5. contrast(130%): 强化山脉的立体纹理。
+      /* 1. invert(100%): 先反色，白变黑。
+         2. hue-rotate(180deg): 把反色后的橙色水面调回蓝色。
+         3. brightness(160%): 【关键修改】必须拉高亮度！因为反色后的地形太黑了。
+         4. contrast(120%): 增加对比度，让等高线跳出来。
+         5. sepia(30%): 加一点古旧感。
       */
-      filter: sepia(50%) hue-rotate(70deg) saturate(150%) brightness(80%) contrast(130%);
+      filter: invert(100%) hue-rotate(180deg) brightness(160%) contrast(120%) sepia(30%);
     }
 
-    #map { background: #1a2621; } /* 深墨绿背景 */
-
-    /* 给整个地图背景加个深色底，防止加载时闪白 */
-    #map {
-      background-color: #1a1712; 
-    }
+    /* 配合这个背景色，防止地图加载缝隙透出白色 */
+    #map { background: #0b0e12; }
 
     /* --- UI 通用风格 (希卡石板 UI) --- */
     .sheikah-ui {
