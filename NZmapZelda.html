@@ -13,7 +13,7 @@
       height: 100%;
       margin: 0;
       padding: 0;
-      background-color: #050505; /* 防止加载时的白屏 */
+      background-color: #050505;
       font-family: "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
       overflow: hidden;
     }
@@ -33,15 +33,15 @@
 
     /* --- UI 通用风格 (希卡石板 UI) --- */
     .sheikah-ui {
-      background: rgba(10, 10, 12, 0.9); /* 深黑背景 */
+      background: rgba(10, 10, 12, 0.9);
       border: 1px solid #7d6c47; /* 暗金边框 */
       color: #ffebb3; /* 希卡金文字 */
       backdrop-filter: blur(4px);
       border-radius: 4px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(0,0,0,0.5);
       font-size: 14px;
-      letter-spacing: 1px; /* 增加字间距，更有科技感 */
-      text-transform: uppercase; /* 英文大写 */
+      letter-spacing: 1px;
+      text-transform: uppercase;
     }
 
     /* --- 筛选面板 --- */
@@ -74,7 +74,6 @@
       color: #fff;
       text-shadow: 0 0 5px #eecfa1;
     }
-    /* 自定义复选框颜色 */
     #filterPanel input {
       accent-color: #00d2ff; 
       margin-right: 8px;
@@ -90,7 +89,6 @@
       cursor: pointer;
       font-weight: bold;
       transition: all 0.3s ease;
-      /* 希卡按钮风格 */
       background: rgba(0, 15, 20, 0.9);
       border: 1px solid #00d2ff;
       color: #00d2ff;
@@ -103,21 +101,17 @@
     }
 
     /* --- 神庙图标 (Markers) --- */
-    .custom-marker {
-      /* 这是一个容器，用于定位 */
-    }
-    /* 核心钻石形状 */
+    .custom-marker {}
     .marker-shrine {
       width: 16px;
       height: 16px;
       margin: 2px auto;
-      transform: rotate(45deg); /* 旋转成菱形 */
-      background: rgba(0, 210, 255, 0.2); /* 内部半透明蓝 */
-      border: 2px solid #00d2ff; /* 亮蓝边框 */
-      box-shadow: 0 0 8px #00d2ff, inset 0 0 4px #00d2ff; /* 内外发光 */
+      transform: rotate(45deg);
+      background: rgba(0, 210, 255, 0.2);
+      border: 2px solid #00d2ff;
+      box-shadow: 0 0 8px #00d2ff, inset 0 0 4px #00d2ff;
       transition: transform 0.3s ease;
     }
-    /* 鼠标悬停动画 */
     .custom-marker:hover .marker-shrine {
       transform: rotate(45deg) scale(1.3);
       background: #00d2ff;
@@ -125,7 +119,7 @@
       cursor: pointer;
     }
     
-    /* 另一种颜色：橙色神庙（用于 Hidden 小众景点） */
+    /* 橙色神庙（小众景点） */
     .marker-shrine.type-hidden {
       border-color: #ff9900;
       background: rgba(255, 153, 0, 0.2);
@@ -147,9 +141,8 @@
       text-shadow: 1px 1px 2px #000, 0 0 3px #000;
       padding: 0;
     }
-    /* 让标签永远在上方 */
     .leaflet-tooltip-top:before {
-      display: none; /* 去掉原本的小箭头 */
+      display: none;
     }
 
     /* --- 弹窗 (Popup) 样式 --- */
@@ -159,12 +152,13 @@
       border-radius: 4px;
       color: #dcd0b3;
       box-shadow: 0 0 20px rgba(0,0,0,0.8);
+      max-width: 300px; /* 限制弹窗宽度，防止长文字太宽 */
     }
     .leaflet-popup-tip {
       background: #eecfa1;
     }
     .popup-title {
-      color: #00d2ff; /* 标题蓝色 */
+      color: #00d2ff;
       font-size: 16px;
       margin: 0 0 8px 0;
       text-transform: uppercase;
@@ -176,9 +170,10 @@
       font-size: 13px;
       line-height: 1.6;
       margin: 0;
+      text-align: justify; /* 文字两端对齐，更好看 */
     }
 
-    /* --- 加载动画 (Sheikah Loading) --- */
+    /* --- 加载动画 --- */
     #loading {
       position: fixed;
       inset: 0;
@@ -244,21 +239,17 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", function () {
-      // 初始化地图
       var map = L.map("map", {
-        zoomControl: false, // 暂时隐藏默认缩放控件，为了美观
-        attributionControl: false // 隐藏右下角版权，为了截图干净（实际使用建议保留）
-      }).setView([-42.5, 172.5], 6); // 稍微调整了一下视角中心
+        zoomControl: false,
+        attributionControl: false
+      }).setView([-42.5, 172.5], 6);
 
-      // 1. 更换底图：使用 CartoDB DarkMatter (无标签版，因为我们自己加标签)
-      // 如果想要有路名，可以把 'dark_nolabels' 改成 'dark_all'
       var tileLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 18,
         subdomains: 'abcd'
       }).addTo(map);
 
-      // 加载动画逻辑
-      var loadingTimeout = setTimeout(hideLoading, 3000); // 3秒后模拟加载完成
+      var loadingTimeout = setTimeout(hideLoading, 3000);
       tileLayer.on("load", hideLoading);
 
       function hideLoading() {
@@ -269,43 +260,161 @@
         setTimeout(() => loading.style.display = "none", 500);
       }
 
-      // 2. 自定义图标生成函数
       function createSheikahIcon(type) {
-        // 根据类型决定颜色类名
         var colorClass = (type === 'hidden') ? 'type-hidden' : ''; 
-        
         return L.divIcon({
           className: "custom-marker",
           html: `<div class="marker-shrine ${colorClass}"></div>`,
           iconSize: [20, 20],
-          iconAnchor: [10, 10], // 中心对齐
+          iconAnchor: [10, 10],
           popupAnchor: [0, -15],
-          tooltipAnchor: [15, 0] // 标签在右侧或下方
+          tooltipAnchor: [15, 0]
         });
       }
 
-      // 3. 景点数据 (保持你的数据不变)
+      // --- 这里恢复了你原始的完整数据 ---
       var places = [
         // 北岛热门
-        { name: "奥克兰 Auckland", lat: -36.8485, lng: 174.7633, type: "hot", desc: "大部分人进入新西兰的第一站。" },
-        { name: "霍比屯 Hobbiton", lat: -37.8720, lng: 175.6820, type: "hot", desc: "中土世界的起点，必去。" },
-        { name: "罗托鲁瓦 Rotorua", lat: -38.1368, lng: 176.2497, type: "hot", desc: "地热与毛利文化中心。" },
-        { name: "惠灵顿 Wellington", lat: -41.2865, lng: 174.7762, type: "hot", desc: "风之城，首都。" },
+        {
+          name: "奥克兰 Auckland",
+          lat: -36.8485,
+          lng: 174.7633,
+          type: "hot",
+          description:
+            "奥克兰是大部分人进入新西兰的第一站，海湾和火山并存。白天可以登天空塔俯瞰全城，或者乘渡轮去德文港散步。市中心购物餐厅选择多，适合作为行程起点补给物资。建议安排一到两天，把更多时间留给南岛。"
+        },
+        {
+          name: "霍比屯 Hobbiton",
+          lat: -37.8720,
+          lng: 175.6820,
+          type: "hot",
+          description:
+            "霍比屯电影外景地位于玛塔玛塔附近，是魔戒和霍比特人粉丝的必去景点。需要提前在官网预定团，多数从罗托鲁瓦或奥克兰参加一日游。导游会带你参观袋底洞等场景，最后在绿龙酒馆喝一杯特色饮品。"
+        },
+        {
+          name: "罗托鲁瓦 Rotorua",
+          lat: -38.1368,
+          lng: 176.2497,
+          type: "hot",
+          description:
+            "罗托鲁瓦以地热和毛利文化闻名，空气里有硫磺味。可以在怀欧塔普、蒂普亚等公园观看喷泉和彩色地热池，晚上参加毛利文化晚宴，体验歌舞和烤全羊。部分温泉可以一边泡一边看湖景，适合缓解旅途疲劳。"
+        },
+        {
+          name: "惠灵顿 Wellington",
+          lat: -41.2865,
+          lng: 174.7762,
+          type: "hot",
+          description:
+            "惠灵顿是新西兰首都，城市不大但很有气氛。步行就能逛完海滨、国会大厦和缆车。蒂帕帕国家博物馆免费开放，展品丰富，是雨天好去处。电影爱好者可以去维塔工作室参观特效制作。建议至少住一晚。"
+        },
+
         // 南岛热门
-        { name: "基督城 Christchurch", lat: -43.5321, lng: 172.6362, type: "hot", desc: "南岛花园城市，重建后的艺术感。" },
-        { name: "特卡波湖 Lake Tekapo", lat: -44.0049, lng: 170.4830, type: "hot", desc: "观星胜地，好牧人教堂。" },
-        { name: "库克山 Mt Cook", lat: -43.7350, lng: 170.0960, type: "hot", desc: "新西兰最高峰，徒步天堂。" },
-        { name: "皇后镇 Queenstown", lat: -45.0312, lng: 168.6626, type: "hot", desc: "极限运动之都，风景绝美。" },
-        { name: "瓦纳卡 Wanaka", lat: -44.6970, lng: 169.1339, type: "hot", desc: "那棵孤独的树。" },
-        { name: "米尔福德峡湾 Milford", lat: -44.6167, lng: 167.8667, type: "hot", desc: "世界第八大奇迹。" },
-        { name: "弗朗茨冰川 Franz Josef", lat: -43.3890, lng: 170.1810, type: "hot", desc: "冰川徒步体验。" },
-        // 南岛小众 (这些会变成橙色图标)
-        { name: "阿贝尔塔斯曼 Abel", lat: -41.0333, lng: 173.0167, type: "hidden", desc: "金色沙滩与皮划艇。" },
-        { name: "凯库拉 Kaikoura", lat: -42.3960, lng: 173.6810, type: "hidden", desc: "观鲸胜地。" },
-        { name: "福克斯冰川 Fox", lat: -43.4647, lng: 170.0181, type: "hidden", desc: "稍微安静一点的冰川。" },
-        { name: "蒂阿瑙 Te Anau", lat: -45.4145, lng: 167.7180, type: "hidden", desc: "萤火虫洞，峡湾门户。" },
-        { name: "但尼丁 Dunedin", lat: -45.8788, lng: 170.5028, type: "hidden", desc: "苏格兰风情古城。" },
-        { name: "斯图尔特岛 Stewart Is.", lat: -46.8990, lng: 168.1000, type: "hidden", desc: "极南之境，几维鸟之家。" }
+        {
+          name: "基督城 Christchurch",
+          lat: -43.5321,
+          lng: 172.6362,
+          type: "hot",
+          description:
+            "基督城是南岛最大的城市，也是很多人南岛行的起点。市区可以乘坐老式有轨电车，沿雅芳河散步或划小船。震后重建留下不少艺术装置和临时教堂。适合作为抵达当天的缓冲点，补给、买电话卡和调整时差。"
+        },
+        {
+          name: "特卡波湖 Lake Tekapo",
+          lat: -44.0049,
+          lng: 170.4830,
+          type: "hot",
+          description:
+            "特卡波湖以梦幻的蓝色湖水和星空出名。善牧堂教堂在湖边，是日落和夜拍的经典机位。春季周边遍布鲁冰花，颜色特别丰富。这里属于暗夜保护区，天气好可以参加观星团，肉眼就能看到银河。"
+        },
+        {
+          name: "库克山 Aoraki / Mt Cook",
+          lat: -43.7350,
+          lng: 170.0960,
+          type: "hot",
+          description:
+            "库克山国家公园拥有新西兰最高峰和多条徒步路线。胡克谷步道最受欢迎，往返约三小时，难度不大但风景非常好，可以看到冰川和雪山。夏季注意防晒补水，冬季留意结冰路段，住宿需提前预订。"
+        },
+        {
+          name: "皇后镇 Queenstown",
+          lat: -45.0312,
+          lng: 168.6626,
+          type: "hot",
+          description:
+            "皇后镇是户外运动之都，蹦极、跳伞、滑雪等项目丰富。镇中心沿湖一圈就能走完，餐厅酒吧集中，很适合住两到三晚。白天乘缆车上山俯瞰瓦卡蒂普湖，傍晚在湖边看日落。还可以自驾去箭镇或格林诺奇半日游。"
+        },
+        {
+          name: "瓦纳卡 Wanaka",
+          lat: -44.6970,
+          lng: 169.1339,
+          type: "hot",
+          description:
+            "瓦纳卡相比皇后镇更安静，适合慢节奏度假。湖边那棵“孤树”是摄影圣地，日出和黄昏光线最好。喜欢徒步可以挑战罗伊峰，登顶视野开阔但爬升较大。也可以选择游船或骑自行车环湖，安排一到两天比较合适。"
+        },
+        {
+          name: "米尔福德峡湾 Milford Sound",
+          lat: -44.6167,
+          lng: 167.8667,
+          type: "hot",
+          description:
+            "米尔福德峡湾是南岛最经典景点之一，多数游客从皇后镇或蒂阿瑙参加一日游。乘游船可以近距离观赏瀑布和海豚，阴天反而更有氛围。自驾需走山路，注意油量和时间，冬季可能结冰封路，晕车的人提前准备药。"
+        },
+        {
+          name: "弗朗茨约瑟夫冰川 Franz Josef Glacier",
+          lat: -43.3890,
+          lng: 170.1810,
+          type: "hot",
+          description:
+            "弗朗茨约瑟夫冰川位于西海岸，在温带雨林中接近冰川十分特别。步行可到观景平台，想踏上冰面需要参加直升机徒步团。天气多变，活动有被取消的可能，行程上留一点机动天较稳妥。小镇虽小但有超市和餐馆补给。"
+        },
+
+        // 南岛小众 / 相对冷门
+        {
+          name: "阿贝尔塔斯曼 Abel Tasman",
+          lat: -41.0333,
+          lng: 173.0167,
+          type: "hidden",
+          description:
+            "阿贝尔塔斯曼国家公园位于南岛最北端，以金色沙滩和碧绿海水闻名。常见玩法是乘船到某个海滩再徒步或划皮划艇返回，路线可长可短。这里比皇后镇人少，适合喜欢海边步道和露营的游客，夏季紫外线很强要注意防晒。"
+        },
+        {
+          name: "凯库拉 Kaikoura",
+          lat: -42.3960,
+          lng: 173.6810,
+          type: "hidden",
+          description:
+            "凯库拉是观鲸和看海豚的热门小镇，但很多第一次南岛自驾的人会错过。海岸线风景非常漂亮，可以在峭壁步道上远眺海豹群。冬春两季观鲸成功率较高，提前预订船票更保险。自驾时注意国道沿海路段偶有落石。"
+        },
+        {
+          name: "福克斯冰川 Fox Glacier",
+          lat: -43.4647,
+          lng: 170.0181,
+          type: "hidden",
+          description:
+            "福克斯冰川在弗朗茨约瑟夫冰川以南，游客相对更少一些。天气允许时可以参加直升机冰川徒步团，和上一个冰川的体验类似但景观略有不同。附近的马瑟森湖在无风时能拍到倒映南阿尔卑斯山的经典照片，建议清晨前往。"
+        },
+        {
+          name: "蒂阿瑙 Te Anau",
+          lat: -45.4145,
+          lng: 167.7180,
+          type: "hidden",
+          description:
+            "蒂阿瑙是前往米尔福德峡湾的门户小镇，也是开往峡湾公路的起点。镇子本身很安静，湖边散步就很舒服。天气好的傍晚可以在湖边看日落，夜里还有萤火虫洞可以参观。自驾去峡湾时建议加满油并准备一点零食。"
+        },
+        {
+          name: "但尼丁 Dunedin",
+          lat: -45.8788,
+          lng: 170.5028,
+          type: "hidden",
+          description:
+            "但尼丁有明显的苏格兰风情，市区有保存良好的火车站和老建筑。附近的奥塔哥半岛是看野生企鹅和信天翁的好地方，黄眼企鹅数量稀少，务必遵守观赏距离和保护规定。这里不算典型旅游路线，适合有多几天时间的旅行者。"
+        },
+        {
+          name: "斯图尔特岛 Stewart Island",
+          lat: -46.8990,
+          lng: 168.1000,
+          type: "hidden",
+          description:
+            "斯图尔特岛位于南岛以南，需要从布拉夫乘船或小飞机前往。岛上游人不多，步道密布，是远离人群体验原始自然的好去处。夜间有机会在导览带领下看到野生几维鸟。因为天气多变，建议行程上预留机动时间。"
+        }
       ];
 
       var placeMarkers = [];
@@ -317,23 +426,21 @@
 
         marker._placeType = p.type;
 
-        // 绑定文字标签 (永久显示)
         marker.bindTooltip(p.name, {
           permanent: true,
-          direction: "right", // 文字在右侧
+          direction: "right", 
           offset: [10, 0],
           className: "place-label"
         });
 
-        // 绑定弹窗
-        var popupHtml = `<h3 class="popup-title">${p.name}</h3><p class="popup-text">${p.desc}</p>`;
+        // 这里我改回了 p.description，并且加上了 text-align: justify 样式让长文字更好看
+        var popupHtml = `<h3 class="popup-title">${p.name}</h3><p class="popup-text">${p.description}</p>`;
         marker.bindPopup(popupHtml);
 
         marker.addTo(map);
         placeMarkers.push(marker);
       });
 
-      // 4. 筛选逻辑
       function updateFilters() {
         var showHot = document.getElementById("filterHot").checked;
         var showHidden = document.getElementById("filterHidden").checked;
@@ -353,7 +460,6 @@
       document.getElementById("filterHot").addEventListener("change", updateFilters);
       document.getElementById("filterHidden").addEventListener("change", updateFilters);
 
-      // 5. 定位逻辑 (Sheikah Scan)
       var userLayer;
       document.getElementById("locateBtn").addEventListener("click", function () {
         var btn = this;
@@ -372,13 +478,13 @@
 
             var lat = pos.coords.latitude;
             var lng = pos.coords.longitude;
+            var accuracy = pos.coords.accuracy;
 
             if (userLayer) {
               map.removeLayer(userLayer.marker);
               map.removeLayer(userLayer.circle);
             }
 
-            // 玩家位置图标 (三角箭头)
             var userIcon = L.divIcon({
               className: 'custom-marker',
               html: '<div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid #fff;filter:drop-shadow(0 0 5px #fff);"></div>',
@@ -387,14 +493,13 @@
 
             var marker = L.marker([lat, lng], {icon: userIcon}).addTo(map);
             
-            // 扫描波纹
             var circle = L.circle([lat, lng], {
-              radius: pos.coords.accuracy * 2,
+              radius: accuracy,
               color: "#00d2ff",
               fillColor: "#00d2ff",
               fillOpacity: 0.1,
               weight: 1,
-              dashArray: "5, 5" // 虚线圆圈
+              dashArray: "5, 5"
             }).addTo(map);
 
             userLayer = { marker: marker, circle: circle };
