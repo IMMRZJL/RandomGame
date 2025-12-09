@@ -26,9 +26,13 @@
       z-index: 1;
     }
     
-    /* 关键魔法：给地图瓦片加滤镜，制造“希卡科技感” */
+    /* 关键魔法：使用反色滤镜，把白底地形图变成黑底希卡风格 */
     .leaflet-tile-pane {
-      filter: contrast(110%) brightness(100%) sepia(30%) hue-rotate(170deg) saturate(150%);
+      /* 1. invert(100%): 把白底变黑底，山脉变深色
+         2. hue-rotate(180deg): 修正颜色（因为反色后蓝色海水会变橙色，旋转180度让它变回冷色调）
+         3. brightness, contrast, sepia: 调整出那种古老的电子屏质感
+      */
+      filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(120%) sepia(20%) saturate(150%);
     }
 
     /* --- UI 通用风格 (希卡石板 UI) --- */
@@ -244,9 +248,8 @@
         attributionControl: false
       }).setView([-42.5, 172.5], 6);
 
-      var tileLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        maxZoom: 18,
-        subdomains: 'abcd'
+      var tileLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "Tiles &copy; Esri"
       }).addTo(map);
 
       var loadingTimeout = setTimeout(hideLoading, 3000);
