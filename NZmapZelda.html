@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>新西兰 - 希卡石板地图</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    /* --- 核心基础设置 --- */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background-color: #050505; /* 防止加载时的白屏 */
+      font-family: "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+      overflow: hidden;
+    }
+
+    /* --- 地图容器与滤镜 --- */
+    #map {
+      width: 100%;
+      height: 100%;
+      background: #0b0e12;
+      z-index: 1;
+    }
+    
+    /* 关键魔法：给地图瓦片加滤镜，制造“希卡科技感” */
+    .leaflet-tile-pane {
+      filter: contrast(110%) brightness(80%) sepia(30%) hue-rotate(170deg) saturate(150%);
+    }
+
+    /* --- UI 通用风格 (希卡石板 UI) --- */
+    .sheikah-ui {
+      background: rgba(10, 10, 12, 0.9); /* 深黑背景 */
+      border: 1px solid #7d6c47; /* 暗金边框 */
+      color: #ffebb3; /* 希卡金文字 */
+      backdrop-filter: blur(4px);
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(0,0,0,0.5);
+      font-size: 14px;
+      letter-spacing: 1px; /* 增加字间距，更有科技感 */
+      text-transform: uppercase; /* 英文大写 */
+    }
+
+    /* --- 筛选面板 --- */
+    #filterPanel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 1000;
+      padding: 15px 20px;
+      min-width: 140px;
+    }
+    #filterPanel h4 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #eecfa1;
+      border-bottom: 1px solid #7d6c47;
+      padding-bottom: 5px;
+    }
+    #filterPanel label {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #dcd0b3;
+      transition: color 0.2s;
+    }
+    #filterPanel label:hover {
+      color: #fff;
+      text-shadow: 0 0 5px #eecfa1;
+    }
+    /* 自定义复选框颜色 */
+    #filterPanel input {
+      accent-color: #00d2ff; 
+      margin-right: 8px;
+    }
+
+    /* --- 定位按钮 --- */
+    #locateBtn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      padding: 10px 20px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.3s ease;
+      /* 希卡按钮风格 */
+      background: rgba(0, 15, 20, 0.9);
+      border: 1px solid #00d2ff;
+      color: #00d2ff;
+      box-shadow: 0 0 5px #00d2ff;
+      text-shadow: 0 0 2px #00d2ff;
+    }
+    #locateBtn:hover {
+      background: rgba(0, 210, 255, 0.15);
+      box-shadow: 0 0 15px #00d2ff;
+    }
+
+    /* --- 神庙图标 (Markers) --- */
+    .custom-marker {
+      /* 这是一个容器，用于定位 */
+    }
+    /* 核心钻石形状 */
+    .marker-shrine {
+      width: 16px;
+      height: 16px;
+      margin: 2px auto;
+      transform: rotate(45deg); /* 旋转成菱形 */
+      background: rgba(0, 210, 255, 0.2); /* 内部半透明蓝 */
+      border: 2px solid #00d2ff; /* 亮蓝边框 */
+      box-shadow: 0 0 8px #00d2ff, inset 0 0 4px #00d2ff; /* 内外发光 */
+      transition: transform 0.3s ease;
+    }
+    /* 鼠标悬停动画 */
+    .custom-marker:hover .marker-shrine {
+      transform: rotate(45deg) scale(1.3);
+      background: #00d2ff;
+      box-shadow: 0 0 15px #00d2ff, 0 0 30px #00d2ff;
+      cursor: pointer;
+    }
+    
+    /* 另一种颜色：橙色神庙（用于 Hidden 小众景点） */
+    .marker-shrine.type-hidden {
+      border-color: #ff9900;
+      background: rgba(255, 153, 0, 0.2);
+      box-shadow: 0 0 8px #ff9900, inset 0 0 4px #ff9900;
+    }
+    .custom-marker:hover .marker-shrine.type-hidden {
+      background: #ff9900;
+      box-shadow: 0 0 15px #ff9900, 0 0 30px #ff9900;
+    }
+
+    /* --- 地图文字标签 --- */
+    .place-label {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      color: #eecfa1; /* 希卡金 */
+      font-size: 13px;
+      font-weight: 600;
+      text-shadow: 1px 1px 2px #000, 0 0 3px #000;
+      padding: 0;
+    }
+    /* 让标签永远在上方 */
+    .leaflet-tooltip-top:before {
+      display: none; /* 去掉原本的小箭头 */
+    }
+
+    /* --- 弹窗 (Popup) 样式 --- */
+    .leaflet-popup-content-wrapper {
+      background: rgba(10, 10, 12, 0.95);
+      border: 1px solid #eecfa1;
+      border-radius: 4px;
+      color: #dcd0b3;
+      box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    }
+    .leaflet-popup-tip {
+      background: #eecfa1;
+    }
+    .popup-title {
+      color: #00d2ff; /* 标题蓝色 */
+      font-size: 16px;
+      margin: 0 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid rgba(0, 210, 255, 0.3);
+      padding-bottom: 4px;
+    }
+    .popup-text {
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* --- 加载动画 (Sheikah Loading) --- */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      transition: opacity 0.5s ease;
+    }
+    .sheikah-eye {
+      width: 60px;
+      height: 60px;
+      border: 4px solid #00d2ff;
+      border-radius: 50%;
+      position: relative;
+      animation: pulse 2s infinite;
+      box-shadow: 0 0 15px #00d2ff;
+    }
+    .sheikah-eye::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px; height: 20px;
+      background: #00d2ff;
+      border-radius: 50%;
+    }
+    #loading h2 {
+      color: #00d2ff;
+      font-weight: normal;
+      letter-spacing: 3px;
+      margin-top: 20px;
+      text-shadow: 0 0 10px #00d2ff;
+      font-size: 14px;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 5px #00d2ff; opacity: 0.8; }
+      50% { box-shadow: 0 0 20px #00d2ff; opacity: 1; }
+      100% { box-shadow: 0 0 5px #00d2ff; opacity: 0.8; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loading">
+    <div class="sheikah-eye"></div>
+    <h2>SYSTEM LOADING...</h2>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="filterPanel" class="sheikah-ui">
+    <h4>MAP FILTERS</h4>
+    <label><input type="checkbox" id="filterHot" checked> SHRINES (HOT)</label>
+    <label><input type="checkbox" id="filterHidden" checked> TOWERS (HIDDEN)</label>
+  </div>
+
+  <button id="locateBtn" class="sheikah-ui">LOCATE</button>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // 初始化地图
+      var map = L.map("map", {
+        zoomControl: false, // 暂时隐藏默认缩放控件，为了美观
+        attributionControl: false // 隐藏右下角版权，为了截图干净（实际使用建议保留）
+      }).setView([-42.5, 172.5], 6); // 稍微调整了一下视角中心
+
+      // 1. 更换底图：使用 CartoDB DarkMatter (无标签版，因为我们自己加标签)
+      // 如果想要有路名，可以把 'dark_nolabels' 改成 'dark_all'
+      var tileLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 18,
+        subdomains: 'abcd'
+      }).addTo(map);
+
+      // 加载动画逻辑
+      var loadingTimeout = setTimeout(hideLoading, 3000); // 3秒后模拟加载完成
+      tileLayer.on("load", hideLoading);
+
+      function hideLoading() {
+        var loading = document.getElementById("loading");
+        if (!loading || loading.dataset.done === "1") return;
+        loading.dataset.done = "1";
+        loading.style.opacity = "0";
+        setTimeout(() => loading.style.display = "none", 500);
+      }
+
+      // 2. 自定义图标生成函数
+      function createSheikahIcon(type) {
+        // 根据类型决定颜色类名
+        var colorClass = (type === 'hidden') ? 'type-hidden' : ''; 
+        
+        return L.divIcon({
+          className: "custom-marker",
+          html: `<div class="marker-shrine ${colorClass}"></div>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10], // 中心对齐
+          popupAnchor: [0, -15],
+          tooltipAnchor: [15, 0] // 标签在右侧或下方
+        });
+      }
+
+      // 3. 景点数据 (保持你的数据不变)
+      var places = [
+        // 北岛热门
+        { name: "奥克兰 Auckland", lat: -36.8485, lng: 174.7633, type: "hot", desc: "大部分人进入新西兰的第一站。" },
+        { name: "霍比屯 Hobbiton", lat: -37.8720, lng: 175.6820, type: "hot", desc: "中土世界的起点，必去。" },
+        { name: "罗托鲁瓦 Rotorua", lat: -38.1368, lng: 176.2497, type: "hot", desc: "地热与毛利文化中心。" },
+        { name: "惠灵顿 Wellington", lat: -41.2865, lng: 174.7762, type: "hot", desc: "风之城，首都。" },
+        // 南岛热门
+        { name: "基督城 Christchurch", lat: -43.5321, lng: 172.6362, type: "hot", desc: "南岛花园城市，重建后的艺术感。" },
+        { name: "特卡波湖 Lake Tekapo", lat: -44.0049, lng: 170.4830, type: "hot", desc: "观星胜地，好牧人教堂。" },
+        { name: "库克山 Mt Cook", lat: -43.7350, lng: 170.0960, type: "hot", desc: "新西兰最高峰，徒步天堂。" },
+        { name: "皇后镇 Queenstown", lat: -45.0312, lng: 168.6626, type: "hot", desc: "极限运动之都，风景绝美。" },
+        { name: "瓦纳卡 Wanaka", lat: -44.6970, lng: 169.1339, type: "hot", desc: "那棵孤独的树。" },
+        { name: "米尔福德峡湾 Milford", lat: -44.6167, lng: 167.8667, type: "hot", desc: "世界第八大奇迹。" },
+        { name: "弗朗茨冰川 Franz Josef", lat: -43.3890, lng: 170.1810, type: "hot", desc: "冰川徒步体验。" },
+        // 南岛小众 (这些会变成橙色图标)
+        { name: "阿贝尔塔斯曼 Abel", lat: -41.0333, lng: 173.0167, type: "hidden", desc: "金色沙滩与皮划艇。" },
+        { name: "凯库拉 Kaikoura", lat: -42.3960, lng: 173.6810, type: "hidden", desc: "观鲸胜地。" },
+        { name: "福克斯冰川 Fox", lat: -43.4647, lng: 170.0181, type: "hidden", desc: "稍微安静一点的冰川。" },
+        { name: "蒂阿瑙 Te Anau", lat: -45.4145, lng: 167.7180, type: "hidden", desc: "萤火虫洞，峡湾门户。" },
+        { name: "但尼丁 Dunedin", lat: -45.8788, lng: 170.5028, type: "hidden", desc: "苏格兰风情古城。" },
+        { name: "斯图尔特岛 Stewart Is.", lat: -46.8990, lng: 168.1000, type: "hidden", desc: "极南之境，几维鸟之家。" }
+      ];
+
+      var placeMarkers = [];
+
+      places.forEach(function (p) {
+        var marker = L.marker([p.lat, p.lng], { 
+          icon: createSheikahIcon(p.type) 
+        });
+
+        marker._placeType = p.type;
+
+        // 绑定文字标签 (永久显示)
+        marker.bindTooltip(p.name, {
+          permanent: true,
+          direction: "right", // 文字在右侧
+          offset: [10, 0],
+          className: "place-label"
+        });
+
+        // 绑定弹窗
+        var popupHtml = `<h3 class="popup-title">${p.name}</h3><p class="popup-text">${p.desc}</p>`;
+        marker.bindPopup(popupHtml);
+
+        marker.addTo(map);
+        placeMarkers.push(marker);
+      });
+
+      // 4. 筛选逻辑
+      function updateFilters() {
+        var showHot = document.getElementById("filterHot").checked;
+        var showHidden = document.getElementById("filterHidden").checked;
+
+        placeMarkers.forEach(function (marker) {
+          var t = marker._placeType;
+          var shouldShow = (t === "hot" && showHot) || (t === "hidden" && showHidden);
+
+          if (shouldShow) {
+            if (!map.hasLayer(marker)) marker.addTo(map);
+          } else {
+            if (map.hasLayer(marker)) map.removeLayer(marker);
+          }
+        });
+      }
+
+      document.getElementById("filterHot").addEventListener("change", updateFilters);
+      document.getElementById("filterHidden").addEventListener("change", updateFilters);
+
+      // 5. 定位逻辑 (Sheikah Scan)
+      var userLayer;
+      document.getElementById("locateBtn").addEventListener("click", function () {
+        var btn = this;
+        btn.innerText = "SCANNING...";
+        
+        if (!navigator.geolocation) {
+          alert("定位模组损坏 (Browser not supported)");
+          btn.innerText = "LOCATE";
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            btn.innerText = "LINK ESTABLISHED";
+            setTimeout(() => btn.innerText = "LOCATE", 2000);
+
+            var lat = pos.coords.latitude;
+            var lng = pos.coords.longitude;
+
+            if (userLayer) {
+              map.removeLayer(userLayer.marker);
+              map.removeLayer(userLayer.circle);
+            }
+
+            // 玩家位置图标 (三角箭头)
+            var userIcon = L.divIcon({
+              className: 'custom-marker',
+              html: '<div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid #fff;filter:drop-shadow(0 0 5px #fff);"></div>',
+              iconSize: [16, 16]
+            });
+
+            var marker = L.marker([lat, lng], {icon: userIcon}).addTo(map);
+            
+            // 扫描波纹
+            var circle = L.circle([lat, lng], {
+              radius: pos.coords.accuracy * 2,
+              color: "#00d2ff",
+              fillColor: "#00d2ff",
+              fillOpacity: 0.1,
+              weight: 1,
+              dashArray: "5, 5" // 虚线圆圈
+            }).addTo(map);
+
+            userLayer = { marker: marker, circle: circle };
+            map.setView([lat, lng], 10);
+          },
+          function (err) {
+            alert("信号干扰，无法定位");
+            btn.innerText = "LOCATE";
+          }
+        );
+      });
+    });
+  </script>
+</body>
+</html>
