@@ -26,16 +26,18 @@
       z-index: 1;
     }
     
-    /* 关键魔法：氧化羊皮卷质感 */
+    /* 配方二：墨绿苔藓风格 (不反色) */
     .leaflet-tile-pane {
-      /* 1. sepia(100%): 彻底泛黄，像老照片
-         2. invert(85%): 反转颜色，但不是100%反转，保留一点灰度，把白底变成深褐灰
-         3. hue-rotate(180deg): 修正色相，把原本蓝色的海（反转后变橙）调回深青/深灰
-         4. contrast(150%): 强行拉高对比度，让山脉的纹理更深邃
-         5. brightness(70%): 稍微压暗，防止太刺眼
+      /* 1. sepia(50%): 先把地图弄黄。
+         2. hue-rotate(70deg): 【关键】把黄色旋转到墨绿色/青苔色。
+         3. saturate(150%): 增加色彩饱和度，让绿色更浓郁。
+         4. brightness(80%): 稍微压暗一点，模拟夜晚/深色UI。
+         5. contrast(130%): 强化山脉的立体纹理。
       */
-      filter: sepia(100%) invert(85%) hue-rotate(180deg) contrast(150%) brightness(100%) saturate(80%);
+      filter: sepia(50%) hue-rotate(70deg) saturate(150%) brightness(80%) contrast(130%);
     }
+
+    #map { background: #1a2621; } /* 深墨绿背景 */
 
     /* 给整个地图背景加个深色底，防止加载时闪白 */
     #map {
