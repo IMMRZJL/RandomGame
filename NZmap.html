@@ -21,7 +21,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* 关键：给 map 明确高度 */
+    /* 关键: 给 map 明确高度和宽度 */
     #map {
       width: 100%;
       height: 100%;
@@ -233,7 +233,7 @@
             map.setView([lat, lng], 12);
           },
           function (err) {
-            alert("定位失败：" + err.message);
+            alert("定位失败: " + err.message);
           }
         );
       });
