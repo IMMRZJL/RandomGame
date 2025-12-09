@@ -255,12 +255,10 @@
         attributionControl: false
       }).setView([-42.5, 172.5], 6);
 
-      // --- 修改开始：使用物理地貌图，这是“质感”的来源 ---
-      var tileLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}", {
-        maxZoom: 8, // 物理地图在高缩放级别可能细节较少，但看全岛效果最好
+      // 备选方案：如果你想要等高线纹理
+      var tileLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", {
         attribution: "Tiles &copy; Esri"
       }).addTo(map);
-      // --- 修改结束 ---
 
       var loadingTimeout = setTimeout(hideLoading, 3000);
       tileLayer.on("load", hideLoading);
