@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Sheikah Slate Map System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    /* --- 核心基础设置 --- */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background-color: #050505;
+      font-family: "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+      overflow: hidden;
+    }
+
+    /* --- 地图容器与滤镜 --- */
+    #map {
+      width: 100%;
+      height: 100%;
+      background: #0b0e12;
+      z-index: 1;
+    }
+    
+    /* 配方一：深色科技风格 (保留地形纹理，大幅提亮)
+       如果不喜欢这个风格，可以把这里换成之前的“配方二”
+    */
+    .leaflet-tile-pane {
+      filter: invert(100%) hue-rotate(180deg) brightness(160%) contrast(120%) sepia(30%);
+    }
+
+    /* --- UI 通用风格 (希卡石板 UI) --- */
+    .sheikah-ui {
+      background: rgba(10, 10, 12, 0.9);
+      border: 1px solid #7d6c47; /* 暗金边框 */
+      color: #ffebb3; /* 希卡金文字 */
+      backdrop-filter: blur(4px);
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(0,0,0,0.5);
+      font-size: 14px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: all 0.3s ease;
+    }
+
+    /* --- 顶部区域切换器 (New Feature) --- */
+    #regionSwitch {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      display: flex;
+      gap: 10px;
+      padding: 5px;
+      border-radius: 20px; /* 圆润一点 */
+    }
+    #regionSwitch button {
+      background: transparent;
+      border: none;
+      color: #7d6c47; /* 未选中时暗淡 */
+      padding: 8px 16px;
+      cursor: pointer;
+      font-weight: bold;
+      letter-spacing: 2px;
+      font-size: 12px;
+      transition: all 0.3s;
+      border-radius: 15px;
+    }
+    #regionSwitch button:hover {
+      color: #ffebb3;
+      text-shadow: 0 0 5px #eecfa1;
+    }
+    #regionSwitch button.active {
+      color: #00d2ff; /* 激活时亮蓝 */
+      background: rgba(0, 210, 255, 0.1);
+      box-shadow: 0 0 8px #00d2ff inset;
+      text-shadow: 0 0 8px #00d2ff;
+    }
+
+    /* --- 筛选面板 --- */
+    #filterPanel {
+      position: absolute;
+      top: 80px; /*稍微下移，避开切换器*/
+      left: 20px;
+      z-index: 1000;
+      padding: 15px 20px;
+      min-width: 140px;
+    }
+    #filterPanel h4 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #eecfa1;
+      border-bottom: 1px solid #7d6c47;
+      padding-bottom: 5px;
+    }
+    #filterPanel label {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #dcd0b3;
+      transition: color 0.2s;
+    }
+    #filterPanel label:hover {
+      color: #fff;
+      text-shadow: 0 0 5px #eecfa1;
+    }
+    #filterPanel input {
+      accent-color: #00d2ff; 
+      margin-right: 8px;
+    }
+
+    /* --- 定位按钮 --- */
+    #locateBtn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      padding: 10px 20px;
+      cursor: pointer;
+      font-weight: bold;
+      border: 1px solid #00d2ff;
+      color: #00d2ff;
+      box-shadow: 0 0 5px #00d2ff;
+      text-shadow: 0 0 2px #00d2ff;
+      background: rgba(0, 15, 20, 0.9);
+    }
+    #locateBtn:hover {
+      background: rgba(0, 210, 255, 0.15);
+      box-shadow: 0 0 15px #00d2ff;
+    }
+
+    /* --- 神庙图标 (Markers) --- */
+    .custom-marker {}
+    .marker-shrine {
+      width: 16px;
+      height: 16px;
+      margin: 2px auto;
+      transform: rotate(45deg);
+      background: rgba(0, 210, 255, 0.2);
+      border: 2px solid #00d2ff;
+      box-shadow: 0 0 8px #00d2ff, inset 0 0 4px #00d2ff;
+      transition: transform 0.3s ease;
+    }
+    .custom-marker:hover .marker-shrine {
+      transform: rotate(45deg) scale(1.3);
+      background: #00d2ff;
+      box-shadow: 0 0 15px #00d2ff, 0 0 30px #00d2ff;
+      cursor: pointer;
+    }
+    
+    /* 橙色神庙（小众景点） */
+    .marker-shrine.type-hidden {
+      border-color: #ff9900;
+      background: rgba(255, 153, 0, 0.2);
+      box-shadow: 0 0 8px #ff9900, inset 0 0 4px #ff9900;
+    }
+    .custom-marker:hover .marker-shrine.type-hidden {
+      background: #ff9900;
+      box-shadow: 0 0 15px #ff9900, 0 0 30px #ff9900;
+    }
+
+    /* --- 地图文字标签 --- */
+    .place-label {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      color: #eecfa1;
+      font-size: 13px;
+      font-weight: 600;
+      text-shadow: 1px 1px 2px #000, 0 0 3px #000;
+      padding: 0;
+    }
+    .leaflet-tooltip-top:before { display: none; }
+
+    /* --- 弹窗 (Popup) --- */
+    .leaflet-popup-content-wrapper {
+      background: rgba(10, 10, 12, 0.95);
+      border: 1px solid #eecfa1;
+      border-radius: 4px;
+      color: #dcd0b3;
+      box-shadow: 0 0 20px rgba(0,0,0,0.8);
+      max-width: 300px;
+    }
+    .leaflet-popup-tip { background: #eecfa1; }
+    .popup-title {
+      color: #00d2ff;
+      font-size: 16px;
+      margin: 0 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid rgba(0, 210, 255, 0.3);
+      padding-bottom: 4px;
+    }
+    .popup-text {
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 0;
+      text-align: justify;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <div id="regionSwitch" class="sheikah-ui">
+    <button id="btn-nz" class="active" onclick="switchRegion('nz')">NEW ZEALAND</button>
+    <button id="btn-au" onclick="switchRegion('au')">AUSTRALIA</button>
+  </div>
+
+  <div id="filterPanel" class="sheikah-ui">
+    <h4>SYSTEM FILTERS</h4>
+    <label><input type="checkbox" id="filterHot" checked> SHRINES (HOT)</label>
+    <label><input type="checkbox" id="filterHidden" checked> TOWERS (HIDDEN)</label>
+  </div>
+
+  <button id="locateBtn" class="sheikah-ui">LOCATE</button>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // 定义全局变量
+    var map;
+    var placeMarkers = [];
+    var currentRegion = 'nz'; // 默认新西兰
+
+    // 区域配置 (中心点和缩放级别)
+    var regions = {
+      nz: { center: [-41.5, 172.5], zoom: 6 },
+      au: { center: [-25.2744, 133.7751], zoom: 4.5 } // 澳洲太大，默认缩放小一点
+    };
+
+    // 数据集合
+    var allPlaces = [
+      // ================= 新西兰数据 (NZ) =================
+      { region: 'nz', name: "奥克兰 Auckland", lat: -36.8485, lng: 174.7633, type: "hot", description: "新西兰第一大城市，也是主要入境口岸。帆船之都，建议作为补给站停留1-2天。" },
+      { region: 'nz', name: "霍比屯 Hobbiton", lat: -37.8720, lng: 175.6820, type: "hot", description: "中土世界打卡点。虽然商业化但细节满满，绿龙酒馆的姜汁啤酒值得一试。" },
+      { region: 'nz', name: "罗托鲁瓦 Rotorua", lat: -38.1368, lng: 176.2497, type: "hot", description: "硫磺味很重的地热城市。除了泡温泉，这里的红木森林徒步也非常棒。" },
+      { region: 'nz', name: "惠灵顿 Wellington", lat: -41.2865, lng: 174.7762, type: "hot", description: "风很大的首都。Te Papa博物馆非常震撼，Cuba Street有很多复古小店。" },
+      { region: 'nz', name: "基督城 Christchurch", lat: -43.5321, lng: 172.6362, type: "hot", description: "南岛中转站。雅芳河撑船很惬意，纸板教堂见证了震后的重生。" },
+      { region: 'nz', name: "特卡波湖 Lake Tekapo", lat: -44.0049, lng: 170.4830, type: "hot", description: "最强观星地。如果不想去天文台人挤人，湖边随便找个黑暗处肉眼看银河也很绝。" },
+      { region: 'nz', name: "库克山 Mt Cook", lat: -43.7350, lng: 170.0960, type: "hot", description: "胡克谷步道(Hooker Valley)性价比极高，平路多，终点冰湖景色无敌。" },
+      { region: 'nz', name: "皇后镇 Queenstown", lat: -45.0312, lng: 168.6626, type: "hot", description: "除了极限运动，去Fergburger排队吃个汉堡也是必须的仪式感。" },
+      { region: 'nz', name: "瓦纳卡 Wanaka", lat: -44.6970, lng: 169.1339, type: "hot", description: "比皇后镇更chill。开飞机体验和罗伊峰(Roys Peak)徒步是两大亮点。" },
+      { region: 'nz', name: "米尔福德峡湾 Milford", lat: -44.6167, lng: 167.8667, type: "hot", description: "即使下雨也别失望，雨后的瀑布群才更有气势。路上注意Kea鹦鹉。" },
+      { region: 'nz', name: "阿贝尔塔斯曼 Abel", lat: -41.0333, lng: 173.0167, type: "hidden", description: "南岛北部的金色海岸。这里的皮划艇体验可能是新西兰最好的。" },
+      { region: 'nz', name: "凯库拉 Kaikoura", lat: -42.3960, lng: 173.6810, type: "hidden", description: "一边是雪山一边是海。除了观鲸，路边龙虾摊的烤龙虾尾一定要吃。" },
+      { region: 'nz', name: "福克斯冰川 Fox", lat: -43.4647, lng: 170.0181, type: "hidden", description: "附近的马瑟森湖(Lake Matheson)清晨无风时，是拍雪山倒影的绝佳机位。" },
+      { region: 'nz', name: "但尼丁 Dunedin", lat: -45.8788, lng: 170.5028, type: "hidden", description: "这里的斜坡街道很出名。Otago半岛能看到野生的黄眼企鹅和信天翁。" },
+
+      // ================= 澳大利亚数据 (AU) =================
+      // --- 悉尼 Sydney ---
+      { region: 'au', name: "悉尼歌剧院 Opera House", lat: -33.8568, lng: 151.2153, type: "hot", description: "澳洲地标。推荐傍晚去对面的麦考利夫人座椅看日落，能同框歌剧院和海港大桥。" },
+      { region: 'au', name: "邦迪海滩 Bondi Beach", lat: -33.8915, lng: 151.2767, type: "hot", description: "悉尼最火海滩。一定要走Bondi to Coogee沿海步道，那是悉尼海岸线的精华。" },
+      { region: 'au', name: "蓝山 Blue Mountains", lat: -33.7139, lng: 150.3119, type: "hot", description: "距离悉尼2小时。三姐妹峰最出名，但更推荐走入谷底的雨林步道呼吸空气。" },
+      { region: 'au', name: "温迪的秘密花园 Wendy's", lat: -33.8436, lng: 151.2099, type: "hidden", description: "藏在Lavender Bay的小众花园，免费开放，看海港大桥的视野非常独特且安静。" },
+      { region: 'au', name: "鹦鹉岛 Cockatoo Is.", lat: -33.8475, lng: 151.1713, type: "hidden", description: "充满工业废墟风的岛屿，以前是监狱和船厂。适合露营和拍酷酷的照片。" },
+
+      // --- 墨尔本 Melbourne ---
+      { region: 'au', name: "大洋路 Great Ocean Rd", lat: -38.6806, lng: 143.1023, type: "hot", description: "全球最美沿海公路。十二门徒岩(12 Apostles)日落必看，建议至少两天自驾。" },
+      { region: 'au', name: "菲利普岛 Penguin Pde", lat: -38.5053, lng: 145.1495, type: "hot", description: "看神仙小企鹅归巢。必须穿羽绒服，海风极其冻人。不许拍照，只能肉眼看。" },
+      { region: 'au', name: "普芬比利火车 Puffing Billy", lat: -37.9079, lng: 145.3556, type: "hot", description: "古老的蒸汽火车。现在虽然不能把脚伸出窗外了，但穿过丹顿农山脉的感觉依然梦幻。" },
+      { region: 'au', name: "霍西尔巷 Hosier Lane", lat: -37.8166, lng: 144.9691, type: "hidden", description: "墨尔本涂鸦文化的代表。每天都在变，充满街头气息，就在联邦广场对面。" },
+      { region: 'au', name: "粉湖 Loch Iel", lat: -36.1402, lng: 141.9790, type: "hidden", description: "维州北部的粉湖。夏天干涸时是白色的，雨季后才会变成草莓奶昔色，去前查水位。" },
+
+      // --- 昆士兰 Queensland (布里斯班/黄金海岸/凯恩斯) ---
+      { region: 'au', name: "大堡礁 Great Barrier Reef", lat: -16.9186, lng: 145.7781, type: "hot", description: "世界最大珊瑚礁群。推荐从凯恩斯或圣灵群岛出发，直升机看心形礁是经典。" },
+      { region: 'au', name: "黄金海岸 Gold Coast", lat: -28.0167, lng: 153.4000, type: "hot", description: "冲浪者的天堂。三大主题公园适合家庭，Q1大楼可以俯瞰绵延几十公里的沙滩。" },
+      { region: 'au', name: "白天堂沙滩 Whitehaven", lat: -20.2825, lng: 149.0392, type: "hidden", description: "位于圣灵群岛，沙子也是纯白色的二氧化硅，不烫脚。被誉为澳洲最美沙滩。" },
+      { region: 'au', name: "天阁露玛 Tangalooma", lat: -27.1738, lng: 153.3664, type: "hidden", description: "摩顿岛上的沉船点。可以划透明皮划艇或者浮潜，周围全是热带鱼和海龟。" },
+
+      // --- 西澳 Perth/WA ---
+      { region: 'au', name: "罗特尼斯岛 Rottnest", lat: -32.0062, lng: 115.5123, type: "hot", description: "这里有世界上最快乐的动物 Quokka (短尾矮袋鼠)。一定要租自行车环岛。" },
+      { region: 'au', name: "尖峰石阵 Pinnacles", lat: -30.5925, lng: 115.1584, type: "hot", description: "沙漠中成千上万根石灰岩柱。日落时分像外星球，非常适合拍科幻大片。" },
+      { region: 'au', name: "赫特泻湖 Hutt Lagoon", lat: -28.1436, lng: 114.2372, type: "hidden", description: "西澳最著名的粉湖。由于藻类作用，湖水呈现鲜艳的粉红色，航拍效果炸裂。" },
+
+      // --- 塔斯马尼亚 Tasmania ---
+      { region: 'au', name: "摇篮山 Cradle Mtn", lat: -41.6816, lng: 145.9493, type: "hot", description: "塔斯马尼亚的灵魂。多芬湖(Dove Lake)环湖徒步很轻松，运气好能看到袋熊。" },
+      { region: 'au', name: "火焰湾 Bay of Fires", lat: -41.1611, lng: 148.2778, type: "hidden", description: "白沙滩、蓝海和布满红色地衣的岩石，色彩对比极其强烈，也是露营圣地。" },
+      { region: 'au', name: "MONA 博物馆", lat: -42.8130, lng: 147.2934, type: "hidden", description: "古怪艺术博物馆。建在地下，展品离经叛道，乘迷彩渡轮前往的过程本身就很酷。" },
+
+      // --- 北领地/南澳 NT/SA ---
+      { region: 'au', name: "乌鲁鲁 Uluru", lat: -25.3444, lng: 131.0369, type: "hot", description: "澳洲心脏红色巨石。在原野星光展(Field of Light)下看它，会感动得想哭。" },
+      { region: 'au', name: "袋鼠岛 Kangaroo Is.", lat: -35.7752, lng: 137.2142, type: "hot", description: "没有围栏的野生动物园。海豹湾可以近距离看海狮，神奇岩石是大自然的鬼斧神工。" },
+      { region: 'au', name: "洞穴花园 Umpherston", lat: -37.8386, lng: 140.7853, type: "hidden", description: "位于甘比尔山。一个由石灰岩洞穴塌陷形成的下沉式花园，像天空之城。" }
+    ];
+
+    document.addEventListener("DOMContentLoaded", function () {
+      // 1. 初始化地图 (注意：这里必须设置 minZoom 否则看澳洲全景会不全)
+      map = L.map("map", {
+        zoomControl: false, 
+        attributionControl: false,
+        minZoom: 3 
+      }).setView(regions.nz.center, regions.nz.zoom);
+
+      // 2. 加载底图 (Esri Topo + Recipe 1 CSS)
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "Tiles &copy; Esri"
+      }).addTo(map);
+
+      // 3. 渲染地点的函数 (根据 region 和 筛选器 更新)
+      function updateMarkers() {
+        // 清除现有的所有标记
+        placeMarkers.forEach(marker => map.removeLayer(marker));
+        placeMarkers = [];
+
+        var showHot = document.getElementById("filterHot").checked;
+        var showHidden = document.getElementById("filterHidden").checked;
+
+        // 筛选数据：符合当前国家 + 符合勾选类型
+        var filteredPlaces = allPlaces.filter(p => {
+          if (p.region !== currentRegion) return false;
+          if (p.type === 'hot' && !showHot) return false;
+          if (p.type === 'hidden' && !showHidden) return false;
+          return true;
+        });
+
+        // 重新添加标记
+        filteredPlaces.forEach(p => {
+          var marker = L.marker([p.lat, p.lng], { 
+            icon: createSheikahIcon(p.type) 
+          });
+
+          marker.bindTooltip(p.name, {
+            permanent: true,
+            direction: "right",
+            offset: [10, 0],
+            className: "place-label"
+          });
+
+          var popupHtml = `<h3 class="popup-title">${p.name}</h3><p class="popup-text">${p.description}</p>`;
+          marker.bindPopup(popupHtml);
+
+          marker.addTo(map);
+          placeMarkers.push(marker);
+        });
+      }
+
+      // 4. 地图切换逻辑 (Fly Animation)
+      window.switchRegion = function(region) {
+        if (currentRegion === region) return; // 如果已经是当前区域，不做反应
+
+        currentRegion = region;
+        
+        // 更新按钮状态
+        document.getElementById('btn-nz').className = region === 'nz' ? 'active' : '';
+        document.getElementById('btn-au').className = region === 'au' ? 'active' : '';
+
+        // 更新地图点位
+        updateMarkers();
+
+        // 执行飞行视角动画
+        var target = regions[region];
+        map.flyTo(target.center, target.zoom, {
+          duration: 2.5, // 飞行时间 2.5秒
+          easeLinearity: 0.25
+        });
+      };
+
+      // 辅助函数：创建图标
+      function createSheikahIcon(type) {
+        var colorClass = (type === 'hidden') ? 'type-hidden' : ''; 
+        return L.divIcon({
+          className: "custom-marker",
+          html: `<div class="marker-shrine ${colorClass}"></div>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+          popupAnchor: [0, -15],
+          tooltipAnchor: [15, 0]
+        });
+      }
+
+      // 绑定筛选事件
+      document.getElementById("filterHot").addEventListener("change", updateMarkers);
+      document.getElementById("filterHidden").addEventListener("change", updateMarkers);
+
+      // 绑定定位事件
+      var userLayer;
+      document.getElementById("locateBtn").addEventListener("click", function () {
+        var btn = this;
+        btn.innerText = "SCANNING...";
+        
+        if (!navigator.geolocation) {
+          alert("无法获取位置");
+          btn.innerText = "LOCATE";
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            btn.innerText = "LINK ESTABLISHED";
+            setTimeout(() => btn.innerText = "LOCATE", 2000);
+
+            var lat = pos.coords.latitude;
+            var lng = pos.coords.longitude;
+            var accuracy = pos.coords.accuracy;
+
+            if (userLayer) {
+              map.removeLayer(userLayer.marker);
+              map.removeLayer(userLayer.circle);
+            }
+
+            var userIcon = L.divIcon({
+              className: 'custom-marker',
+              html: '<div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid #fff;filter:drop-shadow(0 0 5px #fff);"></div>',
+              iconSize: [16, 16]
+            });
+
+            var marker = L.marker([lat, lng], {icon: userIcon}).addTo(map);
+            var circle = L.circle([lat, lng], {
+              radius: accuracy,
+              color: "#00d2ff",
+              fillColor: "#00d2ff",
+              fillOpacity: 0.1,
+              weight: 1,
+              dashArray: "5, 5"
+            }).addTo(map);
+
+            userLayer = { marker: marker, circle: circle };
+            
+            // 定位后稍微飞过去
+            map.flyTo([lat, lng], 10);
+          },
+          function (err) {
+            alert("定位失败");
+            btn.innerText = "LOCATE";
+          }
+        );
+      });
+
+      // 初始运行一次
+      updateMarkers();
+    });
+  </script>
+</body>
+</html>
