@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>酒店训练</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #111a2e;
+      --text: #eaf0ff;
+      --muted: #a9b6d4;
+      --accent: #5eead4;
+      --danger: #fb7185;
+      --warn: #fbbf24;
+      --ok: #34d399;
+      --border: rgba(255,255,255,0.10);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 30% 10%, #14234a 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 18px;
+    }
+    .wrap { width: 980px; max-width: 100%; }
+    .header {
+      display:flex; align-items:center; justify-content:space-between;
+      gap: 12px; margin-bottom: 14px;
+    }
+    .title { font-size: 22px; font-weight: 800; letter-spacing: 0.2px; }
+    .subtitle { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .pill {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      padding: 8px 10px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 12px;
+      display:flex; gap: 10px; align-items:center;
+      user-select:none;
+    }
+    .pill b { color: var(--text); font-weight: 700; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: rgba(17, 26, 46, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    .card h2 {
+      font-size: 15px;
+      margin: 0 0 10px 0;
+      letter-spacing: 0.2px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap: 10px;
+    }
+    .badge {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: rgba(255,255,255,0.04);
+      white-space: nowrap;
+    }
+
+    .row { display:flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .row > * { flex: none; }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+
+    .radio {
+      display:flex; gap: 10px; align-items:center; flex-wrap: wrap;
+      margin: 8px 0 6px 0;
+    }
+    label.option {
+      display:flex; gap: 10px; align-items:flex-start;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      cursor: pointer;
+      min-width: 240px;
+    }
+    label.option:hover { background: rgba(255,255,255,0.05); }
+    input[type="radio"] { transform: translateY(2px); }
+
+    .list { margin: 10px 0 0 0; padding-left: 18px; color: var(--muted); line-height: 1.5; }
+    .list li { margin: 4px 0; }
+
+    .controls {
+      display:flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;
+    }
+    button {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    button:hover { background: rgba(255,255,255,0.10); }
+    button.primary { border-color: rgba(94,234,212,0.45); background: rgba(94,234,212,0.12); }
+    button.primary:hover { background: rgba(94,234,212,0.18); }
+    button.danger { border-color: rgba(251,113,133,0.45); background: rgba(251,113,133,0.10); }
+    button.danger:hover { background: rgba(251,113,133,0.16); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .timerBox {
+      display:flex; flex-direction: column; gap: 10px;
+    }
+    .bigTime {
+      font-size: 56px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      line-height: 1;
+      margin: 6px 0 0 0;
+    }
+    .segmentTitle {
+      font-size: 18px;
+      font-weight: 900;
+      margin: 0;
+    }
+    .segMeta {
+      display:flex; gap: 10px; flex-wrap: wrap; align-items:center;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 2px;
+    }
+    .chip {
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.04);
+    }
+    .barWrap {
+      height: 12px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(94,234,212,0.9), rgba(96,165,250,0.9));
+      transition: width 0.15s linear;
+    }
+    .notice {
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .notice strong { color: var(--text); }
+
+    details { margin-top: 10px; }
+    summary { cursor: pointer; color: var(--muted); }
+    .settingsGrid {
+      display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px;
+    }
+    @media (max-width: 900px) { .settingsGrid { grid-template-columns: 1fr; } }
+    .field {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .field label { display:block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .field input[type="number"] {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(0,0,0,0.25);
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+    }
+    .field input[type="checkbox"] { transform: translateY(1px); }
+    .footerTip { margin-top: 10px; color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div>
+        <div class="title">酒店训练</div>
+        <div class="subtitle">选择 A 或 B，然后跟着计时做即可。每段结束会响一声，点确认进入下一段。</div>
+      </div>
+      <div class="pill">
+        <span>状态:</span>
+        <b id="statusText">待开始</b>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- 左：方案选择 -->
+      <div class="card">
+        <h2>
+          选择训练方案
+          <span class="badge" id="planBadge">未选择</span>
+        </h2>
+
+        <div class="radio">
+          <label class="option">
+            <input type="radio" name="plan" value="A" />
+            <div>
+              <div style="font-weight:900;">A 组合（安静版）</div>
+              <div class="muted small">心率稳稳上去，脚步声较小</div>
+            </div>
+          </label>
+
+          <label class="option">
+            <input type="radio" name="plan" value="B" />
+            <div>
+              <div style="font-weight:900;">B 组合（强度更高）</div>
+              <div class="muted small">更刺激，注意酒店隔音</div>
+            </div>
+          </label>
+        </div>
+
+        <div class="notice" id="planDetail">
+          <strong>提示：</strong>先选 A 或 B。你也可以在下方设置里改每段时长与轮数。
+        </div>
+
+        <details>
+          <summary>设置（可选）</summary>
+          <div class="settingsGrid">
+            <div class="field">
+              <label>动作时长（秒）</label>
+              <input id="workSec" type="number" min="10" max="300" value="40" />
+            </div>
+            <div class="field">
+              <label>休息时长（秒）</label>
+              <input id="restSec" type="number" min="0" max="300" value="20" />
+            </div>
+            <div class="field">
+              <label>轮数</label>
+              <input id="rounds" type="number" min="1" max="12" value="3" />
+            </div>
+
+            <div class="field" style="grid-column: 1 / -1;">
+              <label>音效</label>
+              <div class="row">
+                <label class="row"><input id="soundOn" type="checkbox" checked /> 开启提示音</label>
+                <label class="row muted small">说明：首次点击开始后，浏览器才允许播放声音。</label>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <div class="controls">
+          <button class="primary" id="buildBtn">载入方案</button>
+          <button class="danger" id="resetBtn">重置</button>
+        </div>
+
+        <div class="footerTip">
+          默认逻辑：动作 40s，休息 20s，3 轮。每段结束会暂停等待你点击确认。
+        </div>
+      </div>
+
+      <!-- 右：计时器 -->
+      <div class="card">
+        <h2>
+          计时器
+          <span class="badge" id="progressBadge">0 / 0</span>
+        </h2>
+
+        <div class="timerBox">
+          <div>
+            <p class="segmentTitle" id="segmentTitle">未开始</p>
+            <div class="segMeta">
+              <span class="chip" id="segmentTypeChip">-</span>
+              <span class="chip" id="roundChip">第 0 轮</span>
+              <span class="chip" id="nextChip">下一项: -</span>
+            </div>
+          </div>
+
+          <div class="bigTime" id="timeText">00:00</div>
+
+          <div class="barWrap" aria-label="progress">
+            <div class="bar" id="bar"></div>
+          </div>
+
+          <div class="notice" id="notice">
+            <strong>操作方式：</strong>
+            载入方案后点击“开始”。每段时间到会响一声并暂停，点击“确认进入下一个”继续。
+          </div>
+
+          <div class="controls">
+            <button class="primary" id="startPauseBtn" disabled>开始</button>
+            <button id="confirmBtn" disabled>确认进入下一个</button>
+            <button id="backBtn" disabled>上一个</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  // 方案定义
+  const PLANS = {
+    A: {
+      label: "A 组合（安静版）",
+      exercises: [
+        { name: "高抬腿（安静版，核心收紧）", tip: "抬膝到髋部附近，别耸肩，尽量连续。" },
+        { name: "俯卧撑（标准/跪姿/靠床）", tip: "身体一条线，下降可慢一点，上来有力。" },
+        { name: "深蹲（可慢速下蹲）", tip: "膝盖方向跟脚尖一致，重心在中后脚掌。" },
+        { name: "登山者（慢速控制版）", tip: "核心收紧，膝盖向胸部方向，别塌腰。" },
+        { name: "平板支撑（或侧支撑）", tip: "肘下肩下，收腹夹臀，保持呼吸。" }
+      ]
+    },
+    B: {
+      label: "B 组合（强度更高）",
+      exercises: [
+        { name: "高抬腿或快步原地跑", tip: "优先保证连续性，再追求速度。" },
+        { name: "波比跳（可去掉跳跃）", tip: "如果怕吵，把跳跃换成踮脚伸展。" },
+        { name: "俯卧撑", tip: "做不了标准就跪姿，不要硬拗动作质量。" },
+        { name: "开合蹲（或开合跳）", tip: "吵就做开合蹲，脚步轻一点。" },
+        { name: "死虫式（或卷腹）", tip: "腰贴地，慢慢伸展四肢，别借力甩。" }
+      ]
+    }
+  };
+
+  // 状态
+  let segments = [];      // [{title,type,round,durationSec,tip}]
+  let idx = -1;
+  let remaining = 0;
+  let duration = 0;
+  let timer = null;
+  let isRunning = false;
+  let waitingConfirm = false;
+  let audioUnlocked = false;
+
+  // UI refs
+  const statusText = $("statusText");
+  const planBadge = $("planBadge");
+  const planDetail = $("planDetail");
+  const progressBadge = $("progressBadge");
+
+  const segmentTitle = $("segmentTitle");
+  const segmentTypeChip = $("segmentTypeChip");
+  const roundChip = $("roundChip");
+  const nextChip = $("nextChip");
+
+  const timeText = $("timeText");
+  const bar = $("bar");
+  const notice = $("notice");
+
+  const buildBtn = $("buildBtn");
+  const resetBtn = $("resetBtn");
+  const startPauseBtn = $("startPauseBtn");
+  const confirmBtn = $("confirmBtn");
+  const backBtn = $("backBtn");
+
+  const workSecInput = $("workSec");
+  const restSecInput = $("restSec");
+  const roundsInput = $("rounds");
+  const soundOnInput = $("soundOn");
+
+  function getSelectedPlanKey() {
+    const r = document.querySelector('input[name="plan"]:checked');
+    return r ? r.value : null;
+  }
+
+  function clampInt(n, min, max, fallback) {
+    const x = Number.parseInt(n, 10);
+    if (Number.isNaN(x)) return fallback;
+    return Math.min(max, Math.max(min, x));
+  }
+
+  function formatMMSS(sec) {
+    const s = Math.max(0, Math.floor(sec));
+    const mm = String(Math.floor(s / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  }
+
+  // WebAudio beep
+  function beep(kind = "end") {
+    if (!soundOnInput.checked) return;
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioContext();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+
+      // 频率区分：结束/完成
+      const freq = (kind === "finish") ? 784 : (kind === "rest") ? 587 : 523; // G5 / D5 / C5
+      o.type = "sine";
+      o.frequency.value = freq;
+
+      g.gain.value = 0.0001;
+      o.connect(g);
+      g.connect(ctx.destination);
+
+      const now = ctx.currentTime;
+      g.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+
+      o.start(now);
+      o.stop(now + 0.38);
+
+      o.onended = () => ctx.close();
+    } catch (e) {
+      // 忽略音频失败
+    }
+  }
+
+  function vibrate() {
+    if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
+  }
+
+  function setStatus(t) {
+    statusText.textContent = t;
+  }
+
+  function clearTimer() {
+    if (timer) window.clearInterval(timer);
+    timer = null;
+    isRunning = false;
+  }
+
+  function render() {
+    const total = segments.length;
+    const current = (idx >= 0 && idx < total) ? segments[idx] : null;
+
+    progressBadge.textContent = `${Math.max(0, idx + 1)} / ${total}`;
+
+    if (!current) {
+      segmentTitle.textContent = "未开始";
+      segmentTypeChip.textContent = "-";
+      roundChip.textContent = "第 0 轮";
+      nextChip.textContent = "下一项: -";
+      timeText.textContent = "00:00";
+      bar.style.width = "0%";
+      startPauseBtn.disabled = true;
+      confirmBtn.disabled = true;
+      backBtn.disabled = true;
+      return;
+    }
+
+    segmentTitle.textContent = current.title;
+    segmentTypeChip.textContent = current.type === "work" ? "动作" : (current.type === "rest" ? "休息" : "完成");
+    roundChip.textContent = `第 ${current.round} 轮`;
+    const next = segments[idx + 1];
+    nextChip.textContent = next ? `下一项: ${next.title}` : "下一项: 结束";
+
+    timeText.textContent = formatMMSS(remaining);
+
+    const pct = duration > 0 ? (1 - remaining / duration) * 100 : 0;
+    bar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+
+    // 按钮状态
+    backBtn.disabled = idx <= 0;
+    startPauseBtn.disabled = waitingConfirm; // 等确认时禁用开始/暂停
+    confirmBtn.disabled = !waitingConfirm;
+
+    if (waitingConfirm) {
+      notice.innerHTML =
+        `<strong>时间到。</strong> ${current.type === "work" ? "准备切换" : "准备开始下一段"}。点击“确认进入下一个”。<br><span class="muted small">${current.tip ? "动作提示：" + current.tip : ""}</span>`;
+    } else {
+      notice.innerHTML =
+        `<strong>${isRunning ? "计时进行中" : "已暂停"}</strong>。你可以暂停或等待结束后确认进入下一段。<br><span class="muted small">${current.tip ? "动作提示：" + current.tip : ""}</span>`;
+    }
+  }
+
+  function buildSegments() {
+    const planKey = getSelectedPlanKey();
+    if (!planKey) {
+      planBadge.textContent = "未选择";
+      planDetail.innerHTML = `<strong>提示：</strong>请先选择 A 或 B。`;
+      return false;
+    }
+
+    const workSec = clampInt(workSecInput.value, 10, 300, 40);
+    const restSec = clampInt(restSecInput.value, 0, 300, 20);
+    const rounds = clampInt(roundsInput.value, 1, 12, 3);
+
+    workSecInput.value = workSec;
+    restSecInput.value = restSec;
+    roundsInput.value = rounds;
+
+    const plan = PLANS[planKey];
+    planBadge.textContent = plan.label;
+
+    // 生成段落：每个动作后面加一个休息（最后一个动作也可休息，默认不加）
+    segments = [];
+    for (let r = 1; r <= rounds; r++) {
+      plan.exercises.forEach((ex, i) => {
+        segments.push({
+          title: ex.name,
+          type: "work",
+          round: r,
+          durationSec: workSec,
+          tip: ex.tip || ""
+        });
+
+        // 休息：动作之间休息；每轮最后一个动作后不自动加休息（除非还有下一轮）
+        const isLastExercise = (i === plan.exercises.length - 1);
+        const hasNextRound = (r < rounds);
+
+        if (!isLastExercise && restSec > 0) {
+          segments.push({
+            title: "休息",
+            type: "rest",
+            round: r,
+            durationSec: restSec,
+            tip: "轻微走动或深呼吸，准备下一项。"
+          });
+        } else if (isLastExercise && hasNextRound && restSec > 0) {
+          segments.push({
+            title: "轮间休息",
+            type: "rest",
+            round: r,
+            durationSec: restSec,
+            tip: "喝口水，调整呼吸，准备进入下一轮。"
+          });
+        }
+      });
+    }
+
+    // 初始化到第一段
+    clearTimer();
+    idx = 0;
+    duration = segments[0].durationSec;
+    remaining = duration;
+    waitingConfirm = false;
+
+    setStatus("已载入");
+    startPauseBtn.textContent = "开始";
+    startPauseBtn.disabled = false;
+    confirmBtn.disabled = true;
+    backBtn.disabled = idx <= 0;
+
+    planDetail.innerHTML =
+      `<strong>已载入：</strong>${plan.label}<br>` +
+      `<span class="muted small">动作 ${workSec}s，休息 ${restSec}s，${rounds} 轮，共 ${segments.length} 段。</span>`;
+
+    render();
+    return true;
+  }
+
+  function startTimer() {
+    if (!segments.length || idx < 0) return;
+    if (waitingConfirm) return;
+
+    // 解锁音频（很多浏览器需要一次用户交互）
+    if (!audioUnlocked) {
+      audioUnlocked = true;
+      beep("end"); // 轻微试音
+    }
+
+    if (isRunning) return;
+    isRunning = true;
+    setStatus("进行中");
+    startPauseBtn.textContent = "暂停";
+
+    timer = window.setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        remaining = 0;
+        clearTimer();
+
+        // 时间到：响铃 + 等确认
+        waitingConfirm = true;
+        setStatus("等待确认");
+        const current = segments[idx];
+        beep(current.type === "rest" ? "rest" : "end");
+        vibrate();
+        render();
+        return;
+      }
+      render();
+    }, 1000);
+
+    render();
+  }
+
+  function pauseTimer() {
+    if (!isRunning) return;
+    clearTimer();
+    setStatus("已暂停");
+    startPauseBtn.textContent = "继续";
+    render();
+  }
+
+  function goToIndex(newIdx, autoStart = true) {
+    if (newIdx < 0 || newIdx >= segments.length) return;
+    clearTimer();
+    idx = newIdx;
+    duration = segments[idx].durationSec;
+    remaining = duration;
+    waitingConfirm = false;
+    setStatus("就绪");
+    startPauseBtn.textContent = "开始";
+    confirmBtn.disabled = true;
+    render();
+    if (autoStart) startTimer();
+  }
+
+  function confirmNext() {
+    if (!waitingConfirm) return;
+
+    // 进入下一段
+    const nextIdx = idx + 1;
+    if (nextIdx >= segments.length) {
+      // 完成
+      waitingConfirm = false;
+      setStatus("完成");
+      segmentTitle.textContent = "训练完成";
+      segmentTypeChip.textContent = "完成";
+      roundChip.textContent = "";
+      nextChip.textContent = "下一项: -";
+      timeText.textContent = "00:00";
+      bar.style.width = "100%";
+      notice.innerHTML = `<strong>恭喜完成。</strong>你可以点击“重置”或重新载入方案再来一轮。`;
+      startPauseBtn.disabled = true;
+      confirmBtn.disabled = true;
+      backBtn.disabled = false;
+      beep("finish");
+      vibrate();
+      return;
+    }
+
+    goToIndex(nextIdx, true);
+  }
+
+  function resetAll() {
+    clearTimer();
+    segments = [];
+    idx = -1;
+    remaining = 0;
+    duration = 0;
+    waitingConfirm = false;
+    setStatus("待开始");
+    planBadge.textContent = "未选择";
+    progressBadge.textContent = "0 / 0";
+    planDetail.innerHTML = `<strong>提示：</strong>先选 A 或 B。你也可以在下方设置里改每段时长与轮数。`;
+    startPauseBtn.textContent = "开始";
+    render();
+  }
+
+  // events
+  buildBtn.addEventListener("click", () => buildSegments());
+  resetBtn.addEventListener("click", () => resetAll());
+
+  startPauseBtn.addEventListener("click", () => {
+    if (!segments.length) return;
+    if (waitingConfirm) return;
+    if (isRunning) pauseTimer();
+    else startTimer();
+  });
+
+  confirmBtn.addEventListener("click", () => confirmNext());
+
+  backBtn.addEventListener("click", () => {
+    if (!segments.length) return;
+    const prevIdx = idx - 1;
+    if (prevIdx < 0) return;
+    goToIndex(prevIdx, false);
+  });
+
+  document.querySelectorAll('input[name="plan"]').forEach(el => {
+    el.addEventListener("change", () => {
+      const k = getSelectedPlanKey();
+      if (k) {
+        planBadge.textContent = PLANS[k].label;
+        planDetail.innerHTML = `<strong>已选择：</strong>${PLANS[k].label}<br><span class="muted small">点击“载入方案”生成计时流程。</span>`;
+      }
+    });
+  });
+
+  // 初始渲染
+  render();
+})();
+</script>
+</body>
+</html>
