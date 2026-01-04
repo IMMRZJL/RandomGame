@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Local Folder File Name Inspector</title>
+  <style>
+    :root { --border:#000; --bg:#fff; --muted:#555; }
+    body{
+      margin:24px;
+      font-family:"Times New Roman", Times, serif;
+      background:var(--bg);
+      color:#000;
+    }
+    .wrap{ max-width: 980px; margin: 0 auto; }
+    h1{ font-size: 20px; margin: 0 0 10px 0; font-weight: 700; }
+    p{ margin: 6px 0; line-height: 1.35; }
+    .muted{ color: var(--muted); font-size: 14px; }
+    .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin: 12px 0; }
+    button, input[type="text"]{
+      font-family: inherit;
+      font-size: 14px;
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      background: #fff;
+      color:#000;
+    }
+    button{ cursor:pointer; }
+    button:disabled{ opacity:0.5; cursor:not-allowed; }
+    .drop{
+      border: 2px dashed var(--border);
+      padding: 18px;
+      min-height: 96px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      margin: 12px 0;
+    }
+    .drop.dragover{ background: #f3f3f3; }
+    .stats{
+      border: 1px solid var(--border);
+      padding: 10px;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 780px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+    textarea{
+      width:100%;
+      height: 360px;
+      border: 1px solid var(--border);
+      padding: 10px;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 13px;
+      line-height: 1.25;
+      white-space: pre;
+      resize: vertical;
+    }
+    .small{ font-size: 13px; }
+    .pill{
+      display:inline-block;
+      border:1px solid var(--border);
+      padding: 2px 8px;
+      font-size: 12px;
+      margin: 0 6px 6px 0;
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Local Folder File Name Inspector</h1>
+  <p class="muted">
+    This page runs entirely in your browser. It does not upload your files anywhere.
+    For security, the browser only provides file names after you select or drag-drop a folder.
+  </p>
+
+  <div class="row">
+    <button id="btnPick">Choose a folder</button>
+    <input id="filter" type="text" placeholder="Filter (e.g. ModelV5, .csv, PT11)" size="34" />
+    <button id="btnCopy" disabled>Copy list</button>
+    <button id="btnTxt" disabled>Download TXT</button>
+    <button id="btnCsv" disabled>Download CSV</button>
+    <button id="btnClear" disabled>Clear</button>
+  </div>
+
+  <!-- Folder picker -->
+  <input id="folderInput" type="file" webkitdirectory multiple hidden />
+
+  <div id="drop" class="drop">
+    <div>
+      <div><b>Drag and drop a folder here</b> (Chrome/Edge recommended)</div>
+      <div class="muted small">Or use “Choose a folder”.</div>
+    </div>
+  </div>
+
+  <div class="stats" id="stats">
+    <div><b>Status:</b> Waiting for folder selection…</div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <p class="small"><b>File list (relative paths when available)</b></p>
+      <textarea id="out" readonly></textarea>
+    </div>
+    <div>
+      <p class="small"><b>Extension summary</b></p>
+      <textarea id="extOut" readonly></textarea>
+      <p class="small"><b>Notes</b></p>
+      <div class="muted small">
+        <div class="pill">No uploads</div>
+        <div class="pill">Local-only analysis</div>
+        <div class="pill">Requires user selection</div>
+      </div>
+      <p class="muted small">
+        Drag-drop folder traversal relies on Chromium APIs. If drag-drop doesn’t work,
+        use “Choose a folder”.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const btnPick = document.getElementById('btnPick');
+  const btnCopy = document.getElementById('btnCopy');
+  const btnTxt  = document.getElementById('btnTxt');
+  const btnCsv  = document.getElementById('btnCsv');
+  const btnClear= document.getElementById('btnClear');
+  const folderInput = document.getElementById('folderInput');
+  const drop = document.getElementById('drop');
+  const out = document.getElementById('out');
+  const extOut = document.getElementById('extOut');
+  const stats = document.getElementById('stats');
+  const filter = document.getElementById('filter');
+
+  /** @type {string[]} */
+  let allNames = [];
+
+  function setStatus(html){
+    stats.innerHTML = html;
+  }
+
+  function normalisePath(s){
+    return (s || "").replaceAll("\\", "/").trim();
+  }
+
+  function getExt(name){
+    const base = name.split("/").pop() || name;
+    const idx = base.lastIndexOf(".");
+    return (idx > 0) ? base.slice(idx).toLowerCase() : "(no ext)";
+  }
+
+  function summariseExt(names){
+    const map = new Map();
+    for(const n of names){
+      const ext = getExt(n);
+      map.set(ext, (map.get(ext) || 0) + 1);
+    }
+    const rows = [...map.entries()].sort((a,b)=> b[1]-a[1] || a[0].localeCompare(b[0]));
+    return rows.map(([k,v]) => `${k}\t${v}`).join("\n");
+  }
+
+  function render(){
+    const q = filter.value.trim().toLowerCase();
+    const names = q
+      ? allNames.filter(n => n.toLowerCase().includes(q))
+      : allNames.slice();
+
+    out.value = names.join("\n");
+    extOut.value = summariseExt(names);
+
+    const total = allNames.length;
+    const shown = names.length;
+
+    const msg = `
+      <div><b>Total files:</b> ${total}</div>
+      <div><b>Shown (after filter):</b> ${shown}</div>
+      <div class="muted small">Tip: filter by “ModelV5”, “_prediction_”, “.json”, “PT11”, etc.</div>
+    `;
+    setStatus(msg);
+
+    const enabled = total > 0;
+    btnCopy.disabled = !enabled;
+    btnTxt.disabled  = !enabled;
+    btnCsv.disabled  = !enabled;
+    btnClear.disabled= !enabled;
+  }
+
+  function setNamesFromFileList(fileList){
+    const names = [];
+    for(const f of fileList){
+      // webkitRelativePath works for folder picker; may be empty for drag-drop
+      const rel = f.webkitRelativePath && f.webkitRelativePath.length ? f.webkitRelativePath : f.name;
+      names.push(normalisePath(rel));
+    }
+    allNames = names.sort((a,b)=> a.localeCompare(b));
+    render();
+  }
+
+  function downloadBlob(text, filename, mime){
+    const blob = new Blob([text], {type: mime});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  btnPick.addEventListener('click', () => folderInput.click());
+  folderInput.addEventListener('change', () => {
+    if(folderInput.files && folderInput.files.length){
+      setNamesFromFileList(folderInput.files);
+    }
+  });
+
+  filter.addEventListener('input', render);
+
+  btnClear.addEventListener('click', () => {
+    allNames = [];
+    out.value = "";
+    extOut.value = "";
+    filter.value = "";
+    btnCopy.disabled = btnTxt.disabled = btnCsv.disabled = btnClear.disabled = true;
+    setStatus("<div><b>Status:</b> Cleared. Waiting for folder selection…</div>");
+  });
+
+  btnCopy.addEventListener('click', async () => {
+    try{
+      await navigator.clipboard.writeText(out.value);
+      setStatus(`<div><b>Copied:</b> ${out.value.split("\n").filter(Boolean).length} lines to clipboard.</div>`);
+    }catch(e){
+      setStatus(`<div><b>Copy failed:</b> Your browser blocked clipboard access. You can manually select the text.</div>`);
+    }
+  });
+
+  btnTxt.addEventListener('click', () => {
+    const q = filter.value.trim();
+    const suffix = q ? `_filtered_${q.replaceAll(/\s+/g,"_")}` : "";
+    downloadBlob(out.value + "\n", `file_list${suffix}.txt`, "text/plain;charset=utf-8");
+  });
+
+  btnCsv.addEventListener('click', () => {
+    const lines = out.value.split("\n").filter(Boolean);
+    const csv = ["name,ext"].concat(lines.map(n => {
+      const ext = getExt(n).replaceAll('"','""');
+      const name = n.replaceAll('"','""');
+      return `"${name}","${ext}"`;
+    })).join("\n");
+    const q = filter.value.trim();
+    const suffix = q ? `_filtered_${q.replaceAll(/\s+/g,"_")}` : "";
+    downloadBlob(csv + "\n", `file_list${suffix}.csv`, "text/csv;charset=utf-8");
+  });
+
+  // ---- Drag-drop folder traversal (Chromium) ----
+  drop.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    drop.classList.add('dragover');
+  });
+  drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+
+  drop.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    drop.classList.remove('dragover');
+
+    const items = e.dataTransfer?.items;
+    if(!items || !items.length){
+      // fallback: file list
+      const files = e.dataTransfer?.files;
+      if(files && files.length) setNamesFromFileList(files);
+      return;
+    }
+
+    // Try directory traversal via webkitGetAsEntry
+    const entries = [];
+    for(const item of items){
+      if(item.kind === "file" && item.webkitGetAsEntry){
+        const entry = item.webkitGetAsEntry();
+        if(entry) entries.push(entry);
+      }
+    }
+
+    if(!entries.length){
+      // fallback: file list
+      const files = e.dataTransfer?.files;
+      if(files && files.length) setNamesFromFileList(files);
+      return;
+    }
+
+    setStatus("<div><b>Status:</b> Reading folder…</div>");
+
+    async function walkEntry(entry, prefix=""){
+      return new Promise((resolve) => {
+        if(entry.isFile){
+          entry.file((file) => {
+            resolve([normalisePath(prefix + file.name)]);
+          }, () => resolve([]));
+        } else if(entry.isDirectory){
+          const reader = entry.createReader();
+          const results = [];
+          const readBatch = () => {
+            reader.readEntries(async (batch) => {
+              if(!batch || !batch.length){
+                resolve(results);
+                return;
+              }
+              for(const child of batch){
+                const childPrefix = prefix + entry.name + "/";
+                const childRes = await walkEntry(child, childPrefix);
+                results.push(...childRes);
+              }
+              readBatch();
+            }, () => resolve(results));
+          };
+          readBatch();
+        } else {
+          resolve([]);
+        }
+      });
+    }
+
+    const all = [];
+    for(const ent of entries){
+      const res = await walkEntry(ent, "");
+      all.push(...res);
+    }
+
+    allNames = all.sort((a,b)=> a.localeCompare(b));
+    render();
+  });
+</script>
+</body>
+</html>
