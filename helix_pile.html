@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>UWASP-22 Helical Pile Capacity Calculator (Single Helix)</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --card:#121a33;
+      --card2:#0f1730;
+      --txt:#e9ecff;
+      --muted:#b8c0ff;
+      --line:#2a3570;
+      --ok:#7dff9a;
+      --warn:#ffd37d;
+      --bad:#ff7d7d;
+      --btn:#2b3cff;
+      --btn2:#1b265a;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+    body{margin:0;background:linear-gradient(160deg,var(--bg),#050816);color:var(--txt);font-family:var(--sans);}
+    .wrap{max-width:1100px;margin:0 auto;padding:22px 16px 40px;}
+    h1{margin:0 0 6px;font-size:22px;font-weight:750;letter-spacing:0.2px;}
+    p.lead{margin:0 0 18px;color:var(--muted);line-height:1.45;}
+    .grid{display:grid;grid-template-columns:1.05fr 0.95fr;gap:14px;}
+    @media (max-width: 980px){.grid{grid-template-columns:1fr;}}
+    .card{background:rgba(18,26,51,0.92);border:1px solid rgba(42,53,112,0.7);border-radius:14px;padding:14px 14px 12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);}
+    .card h2{margin:0 0 10px;font-size:15px;font-weight:720;color:#f1f3ff;}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+    label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;}
+    input, select, textarea{
+      width:100%;box-sizing:border-box;
+      background:rgba(15,23,48,0.9);
+      color:var(--txt);
+      border:1px solid rgba(42,53,112,0.8);
+      border-radius:10px;
+      padding:10px 10px;
+      outline:none;
+      font-size:13px;
+    }
+    input:focus, select:focus, textarea:focus{border-color:#6070ff;box-shadow:0 0 0 3px rgba(96,112,255,0.15);}
+    textarea{min-height:135px;font-family:var(--mono);font-size:12px;line-height:1.3;}
+    .btnbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+    button{
+      border:0;border-radius:11px;
+      padding:10px 12px;
+      font-weight:700;
+      cursor:pointer;
+      color:var(--txt);
+      background:var(--btn);
+    }
+    button.secondary{background:var(--btn2);border:1px solid rgba(42,53,112,0.9);}
+    .pill{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:7px 10px;border-radius:999px;
+      border:1px solid rgba(42,53,112,0.8);
+      background:rgba(15,23,48,0.7);
+      color:var(--muted);
+      font-size:12px;
+    }
+    .note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45;}
+    .ok{color:var(--ok);}
+    .warn{color:var(--warn);}
+    .bad{color:var(--bad);}
+    hr{border:0;border-top:1px solid rgba(42,53,112,0.8);margin:12px 0;}
+    .steps{display:flex;flex-direction:column;gap:10px;}
+    .step{
+      background:rgba(15,23,48,0.65);
+      border:1px solid rgba(42,53,112,0.7);
+      border-radius:14px;
+      padding:12px 12px;
+    }
+    .step h3{margin:0 0 8px;font-size:13px;font-weight:780;}
+    .kv{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;}
+    .kv .k{color:var(--muted);font-size:12px;}
+    .kv .v{font-family:var(--mono);font-size:12px;white-space:nowrap;}
+    .big{
+      font-size:15px;font-weight:850;
+      font-family:var(--mono);
+      color:#ffffff;
+    }
+    .small{font-size:11px;color:var(--muted);}
+    .tag{font-family:var(--mono);font-size:11px;color:#d7dcff;background:rgba(96,112,255,0.14);border:1px solid rgba(96,112,255,0.3);padding:2px 7px;border-radius:999px;}
+    .flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    .footer{margin-top:14px;color:var(--muted);font-size:12px;line-height:1.45;}
+    .kbd{font-family:var(--mono);font-size:11px;padding:2px 6px;border-radius:7px;border:1px solid rgba(42,53,112,0.8);background:rgba(15,23,48,0.8);color:#dfe3ff;}
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <h1>UWASP-22 Helical Pile Capacity Calculator (Single Helix)</h1>
+  <p class="lead">
+    Calculates approximate axial <b>tension</b> and <b>compression</b> capacities using the UWASP-22 CPT-based method.
+    This page is designed to show every step and the fixed parameters used (230, 0.15, 0.20).
+  </p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Step 1: Enter pile geometry and CPT inputs</h2>
+
+      <div class="row">
+        <div>
+          <label for="d">Shaft outside diameter, d (m)</label>
+          <input id="d" type="number" step="0.0001" value="0.2191" />
+        </div>
+        <div>
+          <label for="Dh">Helix diameter, D<sub>h</sub> (m)</label>
+          <input id="Dh" type="number" step="0.0001" value="0.45" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="H">Helix depth at tip (embedment), H (m)</label>
+          <input id="H" type="number" step="0.01" value="11.5" />
+        </div>
+        <div>
+          <label for="mode">How will you provide CPT values?</label>
+          <select id="mode">
+            <option value="manual">Manual: enter qcs and qcavg directly</option>
+            <option value="cpt">CPT list: paste depth,qc data and auto-average</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="manualBox">
+        <hr />
+        <div class="row">
+          <div>
+            <label for="qcs_mpa">Average CPT along shaft above helix, q<sub>c,s</sub> (MPa)</label>
+            <input id="qcs_mpa" type="number" step="0.01" value="7.82" />
+            <div class="small">Used in shaft term: q<sub>s</sub> = q<sub>c,s</sub> / 230</div>
+          </div>
+          <div>
+            <label for="qcavg_t_mpa">Helix-zone CPT for tension, q<sub>c,avg</sub> (MPa)</label>
+            <input id="qcavg_t_mpa" type="number" step="0.01" value="21.15" />
+            <div class="small">Used in helix term (tension): Q<sub>h</sub> = 0.15 q<sub>c,avg</sub> A<sub>h</sub></div>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="qcavg_c_mpa">Helix-zone CPT for compression, q<sub>c,avg</sub> (MPa)</label>
+            <input id="qcavg_c_mpa" type="number" step="0.01" value="14.17" />
+            <div class="small">Used in helix term (compression): Q<sub>h</sub> = 0.20 q<sub>c,avg</sub> A<sub>h</sub></div>
+          </div>
+          <div>
+            <label for="unitsHint">Units reminder</label>
+            <div class="pill">1 MPa = 1000 kPa, and kPa · m² = kN</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="cptBox" style="display:none;">
+        <hr />
+        <div class="row">
+          <div>
+            <label for="windowDef">Helix influence zone definition</label>
+            <select id="windowDef">
+              <option value="direction">Direction-of-loading (tension: H−D<sub>h</sub> to H, compression: H to H+D<sub>h</sub>)</option>
+              <option value="symmetric">Symmetric (H−D<sub>h</sub> to H+D<sub>h</sub>) for both</option>
+            </select>
+            <div class="note">
+              The UWASP-22 summary describes averaging within 1 D<sub>h</sub> of the helix in the direction of loading.
+              Some users prefer symmetric averaging. Pick one and keep it consistent.
+            </div>
+          </div>
+          <div>
+            <label for="cptData">Paste CPT data: depth (m), q<sub>c</sub> (MPa)</label>
+            <textarea id="cptData" placeholder="Example:
+0.0, 1.2
+0.1, 1.4
+...
+11.5, 15.0
+11.6, 14.5"></textarea>
+            <div class="small">Accepts comma, tab, or space separation. Lines starting with # are ignored.</div>
+          </div>
+        </div>
+        <div class="note">
+          Auto-averaging method: trapezoidal integration (with linear interpolation at window boundaries), then average = area / window thickness.
+        </div>
+      </div>
+
+      <div class="btnbar">
+        <button id="calcBtn">Calculate</button>
+        <button class="secondary" id="resetBtn">Reset to example</button>
+        <span class="pill"><span class="tag">Fixed parameters</span> β<sub>c</sub>=230, α<sub>t</sub>=0.15, α<sub>c</sub>=0.20</span>
+      </div>
+
+      <div id="messages" class="note"></div>
+    </div>
+
+    <div class="card">
+      <h2>Step-by-step results</h2>
+      <div class="steps">
+
+        <div class="step">
+          <h3>Step 2: Convert inputs and compute areas</h3>
+          <div class="kv"><div class="k">Helix plan area, A<sub>h</sub> = π D<sub>h</sub>² / 4</div><div class="v" id="Ah">–</div></div>
+          <div class="kv"><div class="k">Shaft surface area above helix, A<sub>shaft</sub> = π d H</div><div class="v" id="As">–</div></div>
+        </div>
+
+        <div class="step">
+          <h3>Step 3: Shaft resistance (uses β<sub>c</sub>=230)</h3>
+          <div class="kv"><div class="k">Average CPT along shaft, q<sub>c,s</sub></div><div class="v" id="qcs">–</div></div>
+          <div class="kv"><div class="k">Unit shaft shear, q<sub>s</sub> = q<sub>c,s</sub> / 230</div><div class="v" id="qs">–</div></div>
+          <div class="kv"><div class="k">Shaft capacity, Q<sub>shaft</sub> = q<sub>s</sub> · A<sub>shaft</sub></div><div class="v" id="Qshaft">–</div></div>
+        </div>
+
+        <div class="step">
+          <h3>Step 4: Helix resistance (uses α=0.15 and 0.20)</h3>
+          <div class="kv"><div class="k">Tension helix-zone CPT, q<sub>c,avg,t</sub></div><div class="v" id="qcavgt">–</div></div>
+          <div class="kv"><div class="k">Helix capacity in tension, Q<sub>h,t</sub> = 0.15 · q<sub>c,avg,t</sub> · A<sub>h</sub></div><div class="v" id="Qht">–</div></div>
+          <hr />
+          <div class="kv"><div class="k">Compression helix-zone CPT, q<sub>c,avg,c</sub></div><div class="v" id="qcavgc">–</div></div>
+          <div class="kv"><div class="k">Helix capacity in compression, Q<sub>h,c</sub> = 0.20 · q<sub>c,avg,c</sub> · A<sub>h</sub></div><div class="v" id="Qhc">–</div></div>
+        </div>
+
+        <div class="step">
+          <h3>Step 5: Total capacities</h3>
+          <div class="kv"><div class="k">Total tension capacity, Q<sub>ult,t</sub> = Q<sub>shaft</sub> + Q<sub>h,t</sub></div><div class="v big" id="Qt">–</div></div>
+          <div class="kv"><div class="k">Total compression capacity, Q<sub>ult,c</sub> = Q<sub>shaft</sub> + Q<sub>h,c</sub></div><div class="v big" id="Qc">–</div></div>
+          <div class="note">
+            These are UWASP-22 style estimates for a <b>single helix at the tip</b>. They do not include any separate checks for serviceability limits, structural steel capacity, or installation effects.
+          </div>
+        </div>
+
+      </div>
+
+      <div class="footer">
+        <div class="flex">
+          <span class="pill"><span class="kbd">Tip</span> If you paste CPT data, make sure it extends at least to H + D<sub>h</sub> if you want compression averaging below the helix.</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // Fixed parameters requested to be shown explicitly
+  const BETA_C = 230.0;   // shaft conversion factor
+  const ALPHA_T = 0.15;   // helix factor in tension
+  const ALPHA_C = 0.20;   // helix factor in compression
+
+  const el = (id) => document.getElementById(id);
+
+  function fmt(x, digits=3){
+    if (!isFinite(x)) return "–";
+    return x.toLocaleString(undefined, {maximumFractionDigits: digits});
+  }
+  function fmtkN(x){
+    if (!isFinite(x)) return "–";
+    return `${fmt(x,1)} kN (${fmt(x/1000,3)} MN)`;
+  }
+
+  function showMessage(msg, level="note"){
+    const box = el("messages");
+    box.className = "note";
+    if (level==="ok") box.className = "note ok";
+    if (level==="warn") box.className = "note warn";
+    if (level==="bad") box.className = "note bad";
+    box.textContent = msg;
+  }
+
+  function parseCPT(text){
+    // returns arrays of {z, qc_mpa}
+    const lines = text.split(/\r?\n/);
+    const pts = [];
+    for (const raw of lines){
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      // split by comma, tab, or whitespace
+      const parts = line.split(/[, \t]+/).filter(Boolean);
+      if (parts.length < 2) continue;
+      const z = Number(parts[0]);
+      const qc = Number(parts[1]);
+      if (isFinite(z) && isFinite(qc)) pts.push({z, qc});
+    }
+    pts.sort((a,b)=>a.z-b.z);
+    // remove duplicates (keep last)
+    const cleaned = [];
+    for (const p of pts){
+      if (cleaned.length && Math.abs(cleaned[cleaned.length-1].z - p.z) < 1e-9){
+        cleaned[cleaned.length-1] = p;
+      } else {
+        cleaned.push(p);
+      }
+    }
+    return cleaned;
+  }
+
+  function interpQC(pts, z){
+    // linear interpolation within range
+    if (!pts.length) return NaN;
+    if (z < pts[0].z || z > pts[pts.length-1].z) return NaN;
+    // find segment
+    let lo = 0, hi = pts.length-1;
+    while (hi - lo > 1){
+      const mid = Math.floor((lo+hi)/2);
+      if (pts[mid].z <= z) lo = mid; else hi = mid;
+    }
+    const z0 = pts[lo].z, z1 = pts[hi].z;
+    const q0 = pts[lo].qc, q1 = pts[hi].qc;
+    if (Math.abs(z1-z0) < 1e-12) return q0;
+    const t = (z - z0) / (z1 - z0);
+    return q0 + t*(q1 - q0);
+  }
+
+  function averageQC(pts, zA, zB){
+    // trapezoidal integration with boundary interpolation
+    if (!pts.length) return NaN;
+    const z1 = Math.min(zA, zB);
+    const z2 = Math.max(zA, zB);
+    if (z2 <= z1) return NaN;
+
+    if (z1 < pts[0].z || z2 > pts[pts.length-1].z) return NaN;
+
+    // build sample points inside [z1, z2]
+    const samples = [];
+    // boundary points
+    samples.push({z: z1, qc: interpQC(pts, z1)});
+    for (const p of pts){
+      if (p.z > z1 && p.z < z2) samples.push({z: p.z, qc: p.qc});
+    }
+    samples.push({z: z2, qc: interpQC(pts, z2)});
+    samples.sort((a,b)=>a.z-b.z);
+
+    // integrate
+    let area = 0;
+    for (let i=0; i<samples.length-1; i++){
+      const a = samples[i], b = samples[i+1];
+      const dz = b.z - a.z;
+      area += 0.5 * (a.qc + b.qc) * dz;
+    }
+    return area / (z2 - z1);
+  }
+
+  function compute(){
+    const d = Number(el("d").value);
+    const Dh = Number(el("Dh").value);
+    const H = Number(el("H").value);
+    const mode = el("mode").value;
+
+    if (!(d>0 && Dh>0 && H>0)){
+      showMessage("Please enter positive values for d, Dh, and H.", "bad");
+      return;
+    }
+
+    // Areas
+    const Ah = Math.PI * Dh*Dh / 4.0;
+    const As = Math.PI * d * H;
+
+    // CPT values (MPa) then convert to kPa
+    let qcs_mpa, qcavgt_mpa, qcavgc_mpa;
+    if (mode === "manual"){
+      qcs_mpa = Number(el("qcs_mpa").value);
+      qcavgt_mpa = Number(el("qcavg_t_mpa").value);
+      qcavgc_mpa = Number(el("qcavg_c_mpa").value);
+
+      if (!(isFinite(qcs_mpa) && isFinite(qcavgt_mpa) && isFinite(qcavgc_mpa))){
+        showMessage("Please enter numeric CPT values in MPa for qcs, qcavg (tension), and qcavg (compression).", "bad");
+        return;
+      }
+    } else {
+      const pts = parseCPT(el("cptData").value);
+      if (pts.length < 2){
+        showMessage("Please paste CPT data with at least two lines of depth,qc values.", "bad");
+        return;
+      }
+      const windowDef = el("windowDef").value;
+
+      // Shaft average: 0 to H
+      qcs_mpa = averageQC(pts, 0.0, H);
+
+      // Helix windows
+      if (windowDef === "direction"){
+        // tension: H-Dh to H, compression: H to H+Dh
+        qcavgt_mpa = averageQC(pts, H - Dh, H);
+        qcavgc_mpa = averageQC(pts, H, H + Dh);
+      } else {
+        // symmetric: H-Dh to H+Dh for both
+        qcavgt_mpa = averageQC(pts, H - Dh, H + Dh);
+        qcavgc_mpa = qcavgt_mpa;
+      }
+
+      if (!isFinite(qcs_mpa) || !isFinite(qcavgt_mpa) || !isFinite(qcavgc_mpa)){
+        showMessage(
+          "CPT averaging failed. Check that your CPT data covers the required depth windows (at least 0 to H, and also H±Dh or H+Dh depending on your choice).",
+          "bad"
+        );
+        return;
+      }
+    }
+
+    // Convert MPa to kPa
+    const qcs_kpa = qcs_mpa * 1000.0;
+    const qcavgt_kpa = qcavgt_mpa * 1000.0;
+    const qcavgc_kpa = qcavgc_mpa * 1000.0;
+
+    // Shaft unit shear and capacity
+    const qs_kpa = qcs_kpa / BETA_C;
+    const Qshaft_kN = qs_kpa * As; // kPa*m^2 = kN
+
+    // Helix capacities
+    const Qht_kN = ALPHA_T * qcavgt_kpa * Ah;
+    const Qhc_kN = ALPHA_C * qcavgc_kpa * Ah;
+
+    // Totals
+    const Qt_kN = Qshaft_kN + Qht_kN;
+    const Qc_kN = Qshaft_kN + Qhc_kN;
+
+    // Render results
+    el("Ah").textContent = `${fmt(Ah,4)} m²`;
+    el("As").textContent = `${fmt(As,4)} m²`;
+
+    el("qcs").textContent = `${fmt(qcs_mpa,3)} MPa (${fmt(qcs_kpa,0)} kPa)`;
+    el("qs").textContent = `${fmt(qs_kpa,2)} kPa  (q_s = q_c,s / ${BETA_C})`;
+    el("Qshaft").textContent = fmtkN(Qshaft_kN);
+
+    el("qcavgt").textContent = `${fmt(qcavgt_mpa,3)} MPa (${fmt(qcavgt_kpa,0)} kPa)`;
+    el("Qht").textContent = fmtkN(Qht_kN);
+
+    el("qcavgc").textContent = `${fmt(qcavgc_mpa,3)} MPa (${fmt(qcavgc_kpa,0)} kPa)`;
+    el("Qhc").textContent = fmtkN(Qhc_kN);
+
+    el("Qt").textContent = fmtkN(Qt_kN);
+    el("Qc").textContent = fmtkN(Qc_kN);
+
+    // Basic messages
+    const msgParts = [];
+    msgParts.push(`Used fixed parameters: βc=${BETA_C}, αt=${ALPHA_T}, αc=${ALPHA_C}.`);
+    msgParts.push(`Assumption: single helix at the tip (depth H), and shaft friction mobilised along the full shaft length above the helix.`);
+    showMessage(msgParts.join(" "), "ok");
+  }
+
+  function resetExample(){
+    el("d").value = "0.2191";
+    el("Dh").value = "0.45";
+    el("H").value = "11.5";
+    el("mode").value = "manual";
+    el("qcs_mpa").value = "7.82";
+    el("qcavg_t_mpa").value = "21.15";
+    el("qcavg_c_mpa").value = "14.17";
+    el("cptData").value = "";
+    el("windowDef").value = "direction";
+    syncMode();
+    showMessage("Reset to the example values. Click Calculate.", "warn");
+    // Clear outputs
+    ["Ah","As","qcs","qs","Qshaft","qcavgt","Qht","qcavgc","Qhc","Qt","Qc"].forEach(id=>el(id).textContent="–");
+  }
+
+  function syncMode(){
+    const mode = el("mode").value;
+    el("manualBox").style.display = (mode === "manual") ? "block" : "none";
+    el("cptBox").style.display = (mode === "cpt") ? "block" : "none";
+  }
+
+  el("mode").addEventListener("change", syncMode);
+  el("calcBtn").addEventListener("click", compute);
+  el("resetBtn").addEventListener("click", resetExample);
+
+  // Initial state
+  syncMode();
+  showMessage("Enter inputs, then click Calculate. If using CPT list mode, paste depth,qc (MPa) values first.", "warn");
+</script>
+</body>
+</html>
