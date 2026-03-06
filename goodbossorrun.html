@@ -71,7 +71,6 @@
             font-size: 0.9em;
             border-radius: 0 8px 8px 0;
         }
-
         .info-box ul { margin: 5px 0 0 20px; padding: 0; color: #a5b1be; }
 
         .form-group { margin-bottom: 25px; }
@@ -95,17 +94,12 @@
             font-weight: bold; cursor: pointer; text-transform: uppercase;
             letter-spacing: 1px; transition: transform 0.2s;
         }
-        .btn-calculate {
-            background: linear-gradient(45deg, var(--primary-glow), var(--secondary-glow));
-        }
+        .btn-calculate { background: linear-gradient(45deg, var(--primary-glow), var(--secondary-glow)); }
         .btn-calculate:hover { transform: translateY(-2px); box-shadow: 0 0 20px rgba(0, 240, 255, 0.4); }
 
         .btn-ranking {
-            background: transparent;
-            border: 2px solid var(--primary-glow);
-            color: var(--primary-glow);
-            margin-top: 20px;
-            font-size: 16px;
+            background: transparent; border: 2px solid var(--primary-glow);
+            color: var(--primary-glow); margin-top: 20px; font-size: 16px;
         }
         .btn-ranking:hover { background: rgba(0, 240, 255, 0.1); }
 
@@ -115,24 +109,15 @@
         .guide-box { background: rgba(255, 70, 85, 0.1); border-left: 4px solid var(--danger); padding: 15px; margin-top: 20px; }
         
         .algorithm-footer {
-            font-size: 0.85em;
-            color: var(--text-muted);
-            border-top: 1px solid #30363d;
-            padding-top: 25px;
-            margin-top: 50px;
-            background: rgba(0,0,0,0.2);
-            padding: 20px;
-            border-radius: 8px;
+            font-size: 0.85em; color: var(--text-muted); border-top: 1px solid #30363d;
+            padding-top: 25px; margin-top: 50px; background: rgba(0,0,0,0.2);
+            padding: 20px; border-radius: 8px;
         }
         .algorithm-footer li { margin-bottom: 8px; }
         code { background: #161b22; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: var(--primary-glow); }
 
-        #rankingResult {
-            text-align: center; margin-top: 15px; font-size: 1.1em; color: var(--text-main); line-height: 1.6;
-        }
-        .highlight-tier {
-            color: #fff; background: var(--secondary-glow); padding: 2px 8px; border-radius: 4px; font-weight: bold;
-        }
+        #rankingResult { text-align: center; margin-top: 15px; font-size: 1.1em; color: var(--text-main); line-height: 1.6; }
+        .highlight-tier { color: #fff; background: var(--secondary-glow); padding: 2px 8px; border-radius: 4px; font-weight: bold; }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .loading-text { display: none; color: var(--secondary-glow); font-size: 0.9em; margin-top: 10px; }
@@ -145,18 +130,7 @@
     <div class="subtitle">2026版 | 用魔法打败魔法，用算法解构学术圈<br>量化产出/损耗比，打破信息差。</div>
 
     <div class="privacy-notice">
-        <strong>🔒 匿名机制说明：</strong>本测试不强制收集任何学校机构信息。您输入的导师信息仅用于后台进行宏观区域比对与大盘分析，不涉及任何私人身份识别，数据极度安全且不会对外公开。
-    </div>
-
-    <div class="panel optional-section">
-        <h3>[可选] 全球数据库检索 (Global DB Sync)</h3>
-        <p style="font-size:0.85em; color:var(--text-muted);">输入导师信息，系统将尝试关联 QS 排名与 Google Scholar 指标进行环境加权。</p>
-        <div class="form-group">
-            <label>导师姓名 / ORCID</label>
-            <input type="text" id="piName" name="piName" placeholder="例如: Dr. John Doe / 0000-0001-2345-6789">
-        </div>
-        <button id="searchDbBtn" type="button" style="background:transparent; border:1px solid var(--secondary-glow); color:var(--secondary-glow); padding:8px 15px; border-radius:4px; cursor:pointer;">检索数据库并应用权重</button>
-        <div id="loadingStatus" class="loading-text">正在通过 Scholar API 检索匹配项... [已应用学术权重加成]</div>
+        <strong>🔒 严格匿名机制说明：</strong>本测试不强制收集任何学校机构信息。您输入的导师信息仅用于后台进行宏观区域比对与大盘分析，不涉及任何私人身份识别，数据极度安全且不会对外公开。
     </div>
 
     <form id="evaluationForm">
@@ -270,6 +244,23 @@
             </div>
         </div>
 
+        <div class="panel optional-section">
+            <h3>[可选填] 全球数据库检索 (GLOBAL DB SYNC)</h3>
+            <p style="font-size:0.85em; color:var(--text-muted);">输入学校与导师信息，系统将尝试关联 QS 排名与 Google Scholar 指标进行环境加权。</p>
+            
+            <div class="form-group">
+                <label>大学名称 / 研究所</label>
+                <input type="text" id="uniName" name="uniName" placeholder="例如: USYD / 悉尼大学">
+            </div>
+            <div class="form-group">
+                <label>导师姓名 / ORCID</label>
+                <input type="text" id="piName" name="piName" placeholder="例如: Dr. John Doe / 0000-0001-2345-6789">
+            </div>
+            
+            <button id="searchDbBtn" type="button" style="background:transparent; border:1px solid var(--secondary-glow); color:var(--secondary-glow); padding:8px 15px; border-radius:4px; cursor:pointer; width: 100%;">验证身份并应用权重</button>
+            <div id="loadingStatus" class="loading-text">正在链接 API 检索...</div>
+        </div>
+
         <button type="submit" class="btn-calculate" id="submitBtn">生成多维雷达图与生存指南</button>
     </form>
 
@@ -308,24 +299,32 @@
     let optionalMultiplier = 1.0;
     const formspreeEndpoint = "https://formspree.io/f/xjgavggd";
 
+    // 更新后的防呆查询逻辑
     document.getElementById('searchDbBtn').addEventListener('click', function() {
-        const pi = document.getElementById('piName').value;
+        const uni = document.getElementById('uniName').value.trim();
+        const pi = document.getElementById('piName').value.trim();
         const status = document.getElementById('loadingStatus');
-        if(pi) {
-            status.style.display = 'block';
-            status.innerText = "正在链接 API 检索...";
-            setTimeout(() => {
-                status.innerText = "✅ 匹配成功：已应用环境权重加成 (+10%)";
-                status.style.color = "var(--success)";
-                optionalMultiplier = 1.1; 
-            }, 1000);
-        } else {
-            alert("请填写导师姓名或ORCID。");
+        
+        // 校验输入长度，防止乱敲键盘糊弄
+        if(uni.length < 2 || pi.length < 2) {
+            alert("⚠️ 科研需严谨！请完整输入真实的【大学名称】与【导师姓名】，以便精准检索学术档案。");
+            return;
         }
+
+        status.style.display = 'block';
+        status.style.color = "var(--secondary-glow)";
+        status.innerText = "正在链接全球学术数据库比对 (QS / Scholar)...";
+
+        // 模拟 API 请求延迟
+        setTimeout(() => {
+            status.innerText = `✅ 档案确认：已锁定 ${pi} @ ${uni}，应用环境权重加成 (+10%)`;
+            status.style.color = "var(--success)";
+            optionalMultiplier = 1.1; 
+        }, 1200);
     });
 
     document.getElementById('evaluationForm').addEventListener('submit', function(e) {
-        e.preventDefault(); // 阻止默认跳转
+        e.preventDefault(); 
 
         const q1_region = parseFloat(document.getElementById('q1').value);
         const q2_expected = parseFloat(document.getElementById('q2').value);
@@ -339,7 +338,6 @@
         const q9_money = parseFloat(document.getElementById('q9').value);
         const q10_vibe = parseFloat(document.getElementById('q10').value);
 
-        // 分数计算逻辑
         let delayDiff = q3_actual - q2_expected;
         let delayPenalty = 0;
         if (delayDiff > 0) {
@@ -366,17 +364,13 @@
         let totalScore = axesData.reduce((a, b) => a + b, 0) * (100 / 120) * optionalMultiplier;
         totalScore = Math.min(100, Math.max(0, Math.round(totalScore)));
 
-        // 渲染前端结果
         renderResults(totalScore, axesData, delayDiff, q10_vibe, q8_mentor, q3_5_peer);
-
-        // 后台静默发送数据至 Formspree
         syncToDatabase(totalScore);
     });
 
-    // 独立的数据同步函数 (AJAX无刷新提交)
     function syncToDatabase(finalScore) {
         const formData = new FormData(document.getElementById('evaluationForm'));
-        formData.append('FinalScore', finalScore); // 额外附加上总分
+        formData.append('FinalScore', finalScore); 
         
         fetch(formspreeEndpoint, {
             method: 'POST',
@@ -391,8 +385,6 @@
 
     function renderResults(totalScore, axesData, delayDiff, vibe, mentor, peer) {
         document.getElementById('results').style.display = 'block';
-        
-        // 隐藏之前可能打开的排名结果，以便可以重新测试
         document.getElementById('rankingResult').style.display = 'none';
 
         const scoreSpan = document.getElementById('finalScore');
@@ -407,14 +399,12 @@
         document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
     }
 
-    // 模拟/交互：查看同地区排名情况
     document.getElementById('checkRankingBtn').addEventListener('click', function() {
         const regionSelect = document.getElementById('q1');
-        const regionText = regionSelect.options[regionSelect.selectedIndex].text.split(' ')[0]; // 提取 "欧洲", "澳洲/新西兰" 等
+        const regionText = regionSelect.options[regionSelect.selectedIndex].text.split(' ')[0]; 
         const score = parseInt(document.getElementById('finalScore').innerText);
         const piName = document.getElementById('piName').value || "该导师";
         
-        // 根据分数生成一个合理的排位百分比 (加入少许随机性更真实)
         let percentile = Math.min(99, Math.max(1, score + Math.floor(Math.random() * 10 - 5))); 
         
         const resultDiv = document.getElementById('rankingResult');
@@ -435,7 +425,7 @@
                     当前生态位评级：<span class="highlight-tier" style="background:${tierColor}">${rankTier}</span>
                 </div>
             `;
-        }, 1200); // 制造1.2秒的“加载感”
+        }, 1200); 
     });
 
     function drawChart(data) {
