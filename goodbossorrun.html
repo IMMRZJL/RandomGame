@@ -92,6 +92,31 @@
         .score-display { text-align: center; font-size: 48px; font-weight: bold; margin: 20px 0; text-shadow: 0 0 15px var(--primary-glow); }
         .guide-box { background: rgba(255, 70, 85, 0.1); border-left: 4px solid var(--danger); padding: 15px; margin-top: 20px; }
         
+        .algorithm-footer {
+            font-size: 0.85em;
+            color: var(--text-muted);
+            border-top: 1px solid #30363d;
+            padding-top: 25px;
+            margin-top: 50px;
+            background: rgba(0,0,0,0.2);
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .algorithm-footer li { margin-bottom: 8px; }
+        code { background: #161b22; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: var(--primary-glow); }
+
+        .disclaimer {
+            margin-top: 30px;
+            text-align: center;
+            color: #ff4655;
+            font-weight: bold;
+            font-size: 0.9em;
+            letter-spacing: 1px;
+            border: 1px dashed #ff4655;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .loading-text { display: none; color: var(--secondary-glow); font-size: 0.9em; margin-top: 10px; }
     </style>
@@ -128,7 +153,7 @@
                     <option value="0.9">北美 (全奖制，学术拉锯战与硬核Coursework)</option>
                     <option value="0.9">澳洲/新西兰 (高效输出，三年速通流派)</option>
                     <option value="0.7">港新 (维多利亚港/樟宜机场的高压引擎，快节奏发文)</option>
-                    <option value="0.5">国内 (主打情绪激励，综合实战培养摇篮)</option>
+                    <option value="0.5">国内 (主打情绪激励，综合实战摇篮)</option>
                 </select>
             </div>
 
@@ -243,6 +268,24 @@
             </div>
     </div>
 
+    <div class="algorithm-footer">
+        <h3></> 核心算法与底层逻辑开源公示</h3>
+        <p>本项目计算逻辑全透明，拒绝黑盒。总分满分100，由六个维度的动态权重计算得出：</p>
+        <ul>
+            <li><code>DelayRisk (延毕风险)</code> = (实际毕业时长 - 预计时长) × 惩罚系数。若结合“横向大盘”判定为导师人为卡点，惩罚呈指数级加重。</li>
+            <li><code>AcademicOutput (学术产出)</code> = 导师指导水平(Q8) + 毕业要求合理度(Q5)。</li>
+            <li><code>SurvivalStress (生存压力)</code> = 组会频率及查岗强度(Q4) 反向映射。</li>
+            <li><code>TimeFreedom (时间自由)</code> = 工作时长(Q6) + 杂活管家指数(Q7)。</li>
+            <li><code>Financial (经济收益)</code> = 导师慷慨度(Q9) × <strong>地区大盘购买力系数(Q1)</strong>。</li>
+            <li><code>MentalHealth (情绪健康)</code> = 实验室内部氛围与防PUA指数(Q10)。</li>
+        </ul>
+        <p><em>*注：使用了可选检索模块后，系统会在总分上附加全球名校 QS/Scholar 环境增益乘数 (Multiplier 1.1x)。</em></p>
+        
+        <div class="disclaimer">
+            ⚠️ DISCLAIMER: 本网站纯属娱乐与学术圈打工人自我调侃。测试算法包含主观幽默成分，结果仅供娱乐参考，请绝对不要将其作为退学、换导师或现实人际交往的唯一决策依据。另外，很明显我是AI做的，和作者一点关系没有。如果有，我叫Alex。
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -281,32 +324,24 @@
         const q9_money = parseFloat(document.getElementById('q9').value);
         const q10_vibe = parseFloat(document.getElementById('q10').value);
 
-        // 1. 动态延毕风险 (结合绝对时间与同僚对比)
+        // 1. 动态延毕风险
         let delayDiff = q3_actual - q2_expected;
         let delayPenalty = 0;
         
         if (delayDiff > 0) {
-            // 基础惩罚：每延期1年扣20分
             delayPenalty = delayDiff * 20; 
-            if (q3_5_peer === 0) {
-                // 大环境如此，豁免50%惩罚
-                delayPenalty *= 0.5; 
-            } else if (q3_5_peer < 0) {
-                // 导师个人行为，加重惩罚
-                delayPenalty *= (1 + Math.abs(q3_5_peer) / 20); 
-            }
+            if (q3_5_peer === 0) delayPenalty *= 0.5; 
+            else if (q3_5_peer < 0) delayPenalty *= (1 + Math.abs(q3_5_peer) / 20); 
         } else if (delayDiff < 0) {
-            // 提前毕业奖励
             delayPenalty = q3_5_peer > 0 ? -10 : 0; 
         }
-
         let delayScore = 20 - delayPenalty;
 
         // 2-6. 其他维度得分换算为20分制
         let academicScore = (q8_mentor + q5_req + 20) / 45 * 20; 
         let stressScore = (q4_meeting + 15) / 25 * 20;
         let timeScore = (q6_hours + q7_chores + 35) / 55 * 20;
-        let financialScore = (q9_money + 15) / 25 * 20 * q1_region; // 地区基准干预经济评分
+        let financialScore = (q9_money + 15) / 25 * 20 * q1_region; 
         let emotionalScore = (q10_vibe + 20) / 30 * 20;
 
         const normalize = (val) => Math.max(0, Math.min(20, val));
@@ -357,10 +392,12 @@
             options: {
                 scales: {
                     r: {
+                        min: 0,      // 修复Bug：强行锁死极坐标原点为0
+                        max: 20,     // 强行锁死最大边界为20
                         angleLines: { color: 'rgba(255, 255, 255, 0.1)' },
                         grid: { color: 'rgba(255, 255, 255, 0.1)' },
                         pointLabels: { color: '#c9d1d9', font: { size: 14 } },
-                        ticks: { display: false, min: 0, max: 20 }
+                        ticks: { display: false } 
                     }
                 },
                 plugins: { legend: { display: false } }
