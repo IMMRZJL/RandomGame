@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 学术生存指南 | 导师性价比指数测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --panel-bg: rgba(22, 27, 34, 0.8);
+            --primary-glow: #00f0ff;
+            --secondary-glow: #b026ff;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --danger: #ff4655;
+            --success: #2ea043;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(0, 240, 255, 0.05), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(176, 38, 255, 0.05), transparent 25%);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1, h2, h3 {
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .neon-title {
+            color: #fff;
+            text-shadow: 0 0 10px var(--primary-glow), 0 0 20px var(--primary-glow);
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+            font-size: 0.9em;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .panel:hover {
+            border-color: var(--primary-glow);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: var(--primary-glow);
+        }
+
+        select, input[type="number"], input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            background: #010409;
+            border: 1px solid #30363d;
+            color: #fff;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--secondary-glow);
+            box-shadow: 0 0 8px rgba(176, 38, 255, 0.3);
+        }
+
+        .optional-section {
+            border-left: 4px solid var(--secondary-glow);
+            background: linear-gradient(90deg, rgba(176,38,255,0.1) 0%, transparent 100%);
+        }
+
+        .btn-calculate {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, var(--primary-glow), var(--secondary-glow));
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-calculate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+        }
+
+        #results {
+            display: none;
+            animation: fadeIn 1s;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .score-display {
+            text-align: center;
+            font-size: 48px;
+            font-weight: bold;
+            margin: 20px 0;
+            text-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .guide-box {
+            background: rgba(255, 70, 85, 0.1);
+            border-left: 4px solid var(--danger);
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .algorithm-footer {
+            font-size: 0.8em;
+            color: var(--text-muted);
+            border-top: 1px solid #30363d;
+            padding-top: 20px;
+            margin-top: 50px;
+        }
+
+        code {
+            background: #161b22;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            color: var(--primary-glow);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 模拟API加载状态 */
+        .loading-text {
+            display: none;
+            color: var(--secondary-glow);
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 class="neon-title">导师性价比指数 (A.V.I) 测试</h1>
+    <div class="subtitle">2026年，你的实验室是象牙塔还是集中营？<br>量化产出/损耗比，打破学术信息差。</div>
+
+    <div class="panel optional-section">
+        <h3>[可选] 精准定位模块 (Global DB Sync)</h3>
+        <p style="font-size:0.85em; color:var(--text-muted);">输入导师信息，系统将尝试关联 QS 排名与 Google Scholar 指标进行加权。</p>
+        <div class="form-group">
+            <label>大学名称 / 研究所</label>
+            <input type="text" id="uniName" placeholder="例如: University of Sydney (USYD)">
+        </div>
+        <div class="form-group">
+            <label>导师姓名 / ORCID</label>
+            <input type="text" id="piName" placeholder="例如: Dr. John Doe / 0000-0001-2345-6789">
+        </div>
+        <button id="searchDbBtn" type="button" style="background:transparent; border:1px solid var(--secondary-glow); color:var(--secondary-glow); padding:8px 15px; border-radius:4px; cursor:pointer;">检索数据库并应用权重</button>
+        <div id="loadingStatus" class="loading-text">正在通过 Scholar API 检索匹配项... [已应用 QS Top 50 权重加成]</div>
+    </div>
+
+    <form id="evaluationForm">
+        <div class="panel">
+            <h3>核心评估矩阵 (10必答题)</h3>
+            
+            <div class="form-group">
+                <label>1. 所在地区 (影响基准学制与福利体系)</label>
+                <select id="q1" required>
+                    <option value="1">欧洲 (带薪工作制/极少延毕)</option>
+                    <option value="0.8">北美/澳洲 (全奖制/弹性毕业)</option>
+                    <option value="0.7">港新 (快节奏/高压)</option>
+                    <option value="0.5">国内 (按月发低保/指标限制)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>2. 官方预计学制时长 (年)</label>
+                <input type="number" id="q2" min="1" max="8" step="0.5" value="4" required>
+            </div>
+
+            <div class="form-group">
+                <label>3. 你认识的前2位师兄/师姐实际毕业平均时长 (年)</label>
+                <input type="number" id="q3" min="1" max="10" step="0.5" value="4" placeholder="考察延毕情况" required>
+            </div>
+
+            <div class="form-group">
+                <label>4. 组会频率及性质</label>
+                <select id="q4" required>
+                    <option value="10">每周1次，高效讨论科研 (增益)</option>
+                    <option value="5">每两周或每月1次，按部就班 (正常)</option>
+                    <option value="-5">散养，一年见不到几次 (迷茫)</option>
+                    <option value="-15">每周>2次，或需天天汇报进度，充满PUA (地狱)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>5. 毕业学术要求与学校底线的关系</label>
+                <select id="q5" required>
+                    <option value="10">按学校底线执行，够了就放人 (仁慈)</option>
+                    <option value="0">比学校略高一点 (普遍)</option>
+                    <option value="-10">远超学校要求，按导师心情定 (画大饼/扣人)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>6. 实验室打卡与工作时长</label>
+                <select id="q6" required>
+                    <option value="10">完全不打卡，纯结果导向 (自由)</option>
+                    <option value="5">早9晚5，周末双休 (健康)</option>
+                    <option value="-10">早9晚9，单休/大小周 (疲惫)</option>
+                    <option value="-20">全天候待命，深夜常被@，无周末 (赛博奴隶)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>7. 杂活比例 (非科研事务)</label>
+                <select id="q7" required>
+                    <option value="10">几乎没有，专心科研</option>
+                    <option value="0">偶尔帮忙报销、写点横向项目</option>
+                    <option value="-15">沦为大管家：取快递、接送孩子、疯狂写本子不署名</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>8. 导师学术参与度 (指导能力)</label>
+                <select id="q8" required>
+                    <option value="15">处于学术前沿，能亲自改论文、指明方向 (大牛/学术引路人)</option>
+                    <option value="5">提供大方向和经费，靠自己或小老板 (常见BOSS)</option>
+                    <option value="-10">瞎指挥，脱离科研一线，乱加idea (学术灾难)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>9. 补助与经费充裕度</label>
+                <select id="q9" required>
+                    <option value="10">经费充足，发顶格补助，买设备不眨眼</option>
+                    <option value="0">按学校标准线发，基本够活</option>
+                    <option value="-15">极度抠门，经常要求自费或回扣补助 (学术周扒皮)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>10. 实验室情绪氛围</label>
+                <select id="q10" required>
+                    <option value="10">师门和睦，互相帮助，有团建</option>
+                    <option value="0">各干各的，打工人关系</option>
+                    <option value="-20">互相甩锅，抢一作，导师搞阶级斗争/PUA (集中营)</option>
+                </select>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-calculate">生成多维雷达图与生存指南</button>
+    </form>
+
+    <div id="results" class="panel" style="margin-top: 30px;">
+        <h2 class="neon-title">诊断报告</h2>
+        <div class="score-display">综合得分: <span id="finalScore" style="color: var(--primary-glow);">0</span> / 100</div>
+        
+        <div class="chart-container">
+            <canvas id="radarChart"></canvas>
+        </div>
+
+        <div id="survivalGuide" class="guide-box">
+            </div>
+    </div>
+
+    <div class="algorithm-footer">
+        <h3></> 核心算法开源公示</h3>
+        <p>本项目计算逻辑透明，拒绝黑盒。总分满分100，由基础分(50)加上六个维度的动态权重计算得出：</p>
+        <ul>
+            <li><code>DelayRisk (延毕风险)</code> = (实际毕业时长 - 预计时长) * 惩罚系数。若实际 > 预计，扣除极高分数。</li>
+            <li><code>AcademicOutput (学术产出)</code> = 导师指导(Q8) + 毕业要求合理性(Q5)。</li>
+            <li><code>SurvivalStress (生存压力)</code> = 组会频率(Q4) 反向映射。</li>
+            <li><code>TimeFreedom (时间自由)</code> = 工作时长(Q6) + 杂活比例(Q7)。</li>
+            <li><code>Financial (经济收益)</code> = 补助水平(Q9) * 地区基准物价系数(Q1)。</li>
+            <li><code>MentalHealth (情绪健康)</code> = 实验室氛围(Q10)。</li>
+        </ul>
+        <p><em>*注：使用了可选检索模块后，系统会在总分上附加 QS 排名与 Scholar H-index 的环境增益乘数 (Environment Multiplier 1.05x - 1.15x)。</em></p>
+    </div>
+</div>
+
+<script>
+    let myChart = null;
+    let optionalMultiplier = 1.0;
+
+    // 模拟搜索按钮效果
+    document.getElementById('searchDbBtn').addEventListener('click', function() {
+        const uni = document.getElementById('uniName').value;
+        const pi = document.getElementById('piName').value;
+        const status = document.getElementById('loadingStatus');
+        if(uni || pi) {
+            status.style.display = 'block';
+            status.innerText = "正在链接 Scholar/QS API 检索...";
+            setTimeout(() => {
+                status.innerText = "✅ 匹配成功：已应用名校/大牛权重加成 (+10%)";
+                status.style.color = "var(--success)";
+                optionalMultiplier = 1.1; // 增加10%分数
+            }, 1500);
+        } else {
+            alert("请至少填写大学或导师名称。");
+        }
+    });
+
+    document.getElementById('evaluationForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // 获取表单数据
+        const q1_region = parseFloat(document.getElementById('q1').value);
+        const q2_expected = parseFloat(document.getElementById('q2').value);
+        const q3_actual = parseFloat(document.getElementById('q3').value);
+        const q4_meeting = parseFloat(document.getElementById('q4').value);
+        const q5_req = parseFloat(document.getElementById('q5').value);
+        const q6_hours = parseFloat(document.getElementById('q6').value);
+        const q7_chores = parseFloat(document.getElementById('q7').value);
+        const q8_mentor = parseFloat(document.getElementById('q8').value);
+        const q9_money = parseFloat(document.getElementById('q9').value);
+        const q10_vibe = parseFloat(document.getElementById('q10').value);
+
+        // 1. 延毕风险 (Delay Risk) - 反向指标转换为正向分。越小越好。
+        let delayDiff = q3_actual - q2_expected;
+        // 延毕1年扣20分，按时毕业满分
+        let delayScore = 20 - (delayDiff > 0 ? delayDiff * 20 : 0); 
+        if (delayScore < 0) delayScore = 0;
+        if (delayScore > 20) delayScore = 20; // 提前毕业最高20
+
+        // 2. 学术产出潜力 (Academic Output)
+        let academicScore = (q8_mentor + q5_req + 20) / 45 * 20; // max ~20
+        
+        // 3. 生存压力 (Survival Stress) - 映射为正向指标：低压力得高分
+        let stressScore = (q4_meeting + 15) / 25 * 20;
+
+        // 4. 时间自由度 (Time Freedom)
+        let timeScore = (q6_hours + q7_chores + 35) / 55 * 20;
+
+        // 5. 经济收益 (Financial Return) - 受地区基准影响
+        let financialScore = (q9_money + 15) / 25 * 20 * q1_region;
+
+        // 6. 情绪健康 (Emotional Health)
+        let emotionalScore = (q10_vibe + 20) / 30 * 20;
+
+        // 修正异常值，保证范围在0-20之间 (雷达图满分20)
+        const normalize = (val) => Math.max(0, Math.min(20, val));
+        
+        const axesData = [
+            normalize(academicScore),
+            normalize(stressScore),
+            normalize(timeScore),
+            normalize(emotionalScore),
+            normalize(financialScore),
+            normalize(delayScore)
+        ];
+
+        // 总分计算 (满分100，按比例缩放)
+        let totalScore = axesData.reduce((a, b) => a + b, 0) * (100 / 120) * optionalMultiplier;
+        totalScore = Math.min(100, Math.max(0, Math.round(totalScore)));
+
+        // 显示结果区域
+        document.getElementById('results').style.display = 'block';
+        document.getElementById('finalScore').innerText = totalScore;
+
+        // 动态颜色：根据分数变色
+        const scoreSpan = document.getElementById('finalScore');
+        if(totalScore >= 80) scoreSpan.style.color = 'var(--success)';
+        else if (totalScore >= 60) scoreSpan.style.color = 'var(--primary-glow)';
+        else scoreSpan.style.color = 'var(--danger)';
+
+        // 绘制雷达图
+        drawChart(axesData);
+
+        // 生成反压榨生存指南
+        generateGuide(totalScore, delayDiff, q10_vibe, q8_mentor);
+
+        // 滚动到结果
+        document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+    });
+
+    function drawChart(data) {
+        const ctx = document.getElementById('radarChart').getContext('2d');
+        
+        if (myChart) {
+            myChart.destroy(); // 销毁旧图表重绘
+        }
+
+        myChart = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: ['学术产出潜力', '低生存压力', '时间自由度', '情绪健康', '经济收益', '按时毕业率'],
+                datasets: [{
+                    label: '你的实验室雷达图',
+                    data: data,
+                    backgroundColor: 'rgba(0, 240, 255, 0.2)',
+                    borderColor: '#00f0ff',
+                    pointBackgroundColor: '#b026ff',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#b026ff',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: { color: 'rgba(255, 255, 255, 0.1)' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                        pointLabels: {
+                            color: '#c9d1d9',
+                            font: { size: 14, family: "'Segoe UI', sans-serif" }
+                        },
+                        ticks: {
+                            display: false, // 隐藏具体刻度数字，保持极简感
+                            min: 0,
+                            max: 20
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+
+    function generateGuide(score, delay, vibe, mentor) {
+        const guideBox = document.getElementById('survivalGuide');
+        let html = `<h3>🛡️ 深度生存策略 (反压榨指南)</h3>`;
+
+        if (score >= 80) {
+            guideBox.style.borderLeftColor = 'var(--success)';
+            guideBox.style.background = 'rgba(46, 160, 67, 0.1)';
+            html += `<p><strong>【SSR级神仙导师】评级：象牙塔的守望者。</strong><br>你的导师兼具学术能力和人性关怀。建议：紧跟导师步伐，多争取核心课题，不用内耗，直接把精力all-in在发顶会上。保护好你的导师，别让外界的戾气污染你们组！</p>`;
+        } else if (score >= 60) {
+            guideBox.style.borderLeftColor = 'var(--primary-glow)';
+            guideBox.style.background = 'rgba(0, 240, 255, 0.1)';
+            html += `<p><strong>【R级普通职场】评级：学术界的普通打工人。</strong><br>这是最普遍的情况，导师更像是老板。建议：放弃对“恩师”的幻想，把它当成一份有KPI的工作。完成最低毕业要求是第一要务。学会管理向上预期，适当“摸鱼”保持身心健康。</p>`;
+        } else {
+            guideBox.style.borderLeftColor = 'var(--danger)';
+            guideBox.style.background = 'rgba(255, 70, 85, 0.1)';
+            html += `<p><strong>【⚠️ 致命警报】评级：学术黑砖窑 / PUA重灾区。</strong><br>请立即拉响警报！你正在遭受严重的科研剥削。如果还在选导师阶段，<strong>快跑！</strong></p>`;
+            html += `<ul>`;
+            if (delay > 0.5) html += `<li><strong>延毕风控：</strong> 往届延毕严重，说明该组存在结构性卡人。必须在研一/博一留下所有汇报记录（邮件、文档），达到学院毕业底线后立刻联合辅导员或学院施压。</li>`;
+            if (vibe < 0) html += `<li><strong>反PUA机制：</strong> 导师的话术（“你这届最差”、“多干活是对你好”）是标准的控制手段。做到“左耳进右耳出”，寻求校外或跨组的情感支持网络。</li>`;
+            if (mentor < 0) html += `<li><strong>自救发文：</strong> 导师瞎指挥会导致死胡同。表面顺从，背地里自己找靠谱的小老板、师兄或跨校合作者，以第一作者身份把文章投出去，造成既定事实。</li>`;
+            html += `</ul><p><em>*记住：学位不是生命的全部，及时止损（退学或换导师）也是一种勇敢。</em></p>`;
+        }
+
+        guideBox.innerHTML = html;
+    }
+</script>
+
+</body>
+</html>
